@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>ScholarFM</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: #0f0f13;
+    color: #e8e8f0;
+    min-height: 100vh;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px 32px;
+    border-bottom: 1px solid #1e1e2e;
+  }
+
+  .logo { font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  .logo span { color: #7c6aff; }
+  .tagline { font-size: 13px; color: #555; margin-left: auto; }
+
+  main { max-width: 820px; margin: 0 auto; padding: 40px 24px; }
+
+  .card {
+    background: #16161f;
+    border: 1px solid #2a2a3a;
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 20px;
+  }
+
+  .card-label {
+    font-size: 11px;
+    font-weight: 700;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    margin-bottom: 16px;
+  }
+
+  .tab-row { display: flex; gap: 8px; margin-bottom: 16px; }
+
+  .tab {
+    padding: 6px 16px;
+    border-radius: 20px;
+    border: 1px solid #2a2a3a;
+    background: none;
+    color: #888;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.15s;
+  }
+  .tab.active { background: #7c6aff20; border-color: #7c6aff; color: #7c6aff; }
+
+  textarea {
+    width: 100%;
+    background: #0f0f13;
+    border: 1px solid #2a2a3a;
+    border-radius: 10px;
+    color: #e8e8f0;
+    font-size: 14px;
+    line-height: 1.6;
+    padding: 14px;
+    resize: vertical;
+    min-height: 140px;
+    outline: none;
+    font-family: inherit;
+  }
+  textarea:focus { border-color: #7c6aff55; }
+
+  input[type="file"] { display: none; }
+
+  .file-drop {
+    border: 2px dashed #2a2a3a;
+    border-radius: 10px;
+    padding: 36px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.15s;
+    color: #555;
+  }
+  .file-drop:hover, .file-drop.dragover {
+    border-color: #7c6aff;
+    color: #7c6aff;
+    background: #7c6aff08;
+  }
+  .file-drop .icon { font-size: 32px; margin-bottom: 8px; }
+  .file-drop p { font-size: 14px; }
+  .file-drop small { font-size: 12px; color: #444; margin-top: 4px; display: block; }
+
+  .btn-primary {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    padding: 13px 24px;
+    border-radius: 10px;
+    border: none;
+    cursor: pointer;
+    font-size: 15px;
+    font-weight: 600;
+    background: #7c6aff;
+    color: #fff;
+    margin-top: 16px;
+    transition: background 0.15s;
+  }
+  .btn-primary:hover:not(:disabled) { background: #6a58e8; }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* Error banner */
+  .error-banner {
+    display: none;
+    background: #2a1520;
+    border: 1px solid #ff4d6d55;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 14px;
+    color: #ff7a94;
+    margin-top: 14px;
+    line-height: 1.5;
+  }
+  .error-banner.visible { display: block; }
+
+  /* Player */
+  .player-card { display: none; }
+  .player-card.visible { display: block; }
+
+  .now-playing {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 20px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #1e1e2e;
+  }
+
+  .wave-icon {
+    width: 48px; height: 48px;
+    background: #7c6aff20;
+    border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; flex-shrink: 0;
+  }
+
+  .now-playing-info h3 { font-size: 15px; font-weight: 600; }
+  .now-playing-info p { font-size: 13px; color: #555; margin-top: 2px; }
+
+  .btn-back {
+    margin-left: auto;
+    padding: 7px 14px;
+    border-radius: 8px;
+    border: 1px solid #2a2a3a;
+    background: none;
+    color: #666;
+    cursor: pointer;
+    font-size: 13px;
+  }
+  .btn-back:hover { color: #aaa; border-color: #444; }
+
+  .progress-bar {
+    height: 3px;
+    background: #2a2a3a;
+    border-radius: 2px;
+    margin-bottom: 16px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: #7c6aff;
+    border-radius: 2px;
+    transition: width 0.4s;
+    width: 0%;
+  }
+
+  .transcript {
+    max-height: 320px;
+    overflow-y: auto;
+    margin-bottom: 20px;
+    scroll-behavior: smooth;
+  }
+
+  .turn {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 14px;
+    opacity: 0.4;
+    transition: opacity 0.3s;
+  }
+  .turn.active { opacity: 1; }
+  .turn.done { opacity: 0.65; }
+
+  .avatar {
+    width: 34px; height: 34px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    flex-shrink: 0; margin-top: 2px;
+  }
+  .avatar.alex { background: #7c6aff30; color: #7c6aff; }
+  .avatar.maya { background: #ff6a9430; color: #ff6a94; }
+
+  .bubble {
+    background: #1e1e2e;
+    border-radius: 12px;
+    padding: 10px 14px;
+    font-size: 14px;
+    line-height: 1.6;
+    flex: 1;
+  }
+  .turn.answer .bubble { background: #1e1a2e; border-left: 3px solid #ff6a94; }
+
+  .speaker-name {
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.6px;
+    margin-bottom: 4px;
+  }
+  .speaker-name.alex { color: #7c6aff; }
+  .speaker-name.maya { color: #ff6a94; }
+
+  .controls { display: flex; gap: 10px; align-items: center; }
+
+  .btn-control {
+    padding: 11px 20px;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    transition: all 0.15s;
+  }
+  .btn-play { background: #7c6aff; color: #fff; flex: 1; }
+  .btn-play:hover { background: #6a58e8; }
+
+  .btn-interrupt {
+    background: #ff6a9420;
+    color: #ff6a94;
+    border: 1px solid #ff6a9440;
+  }
+  .btn-interrupt:hover { background: #ff6a9430; }
+  .btn-interrupt:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .status-bar {
+    font-size: 13px; color: #555;
+    text-align: center; margin-top: 10px;
+    min-height: 20px;
+  }
+
+  /* Ask panel */
+  .interrupt-panel {
+    display: none;
+    background: #1a1a28;
+    border: 1px solid #ff6a9440;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 18px;
+  }
+  .interrupt-panel.visible { display: block; }
+  .interrupt-panel h4 {
+    font-size: 12px; color: #ff6a94;
+    margin-bottom: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .interrupt-panel textarea { min-height: 70px; margin-bottom: 10px; }
+  .interrupt-actions { display: flex; gap: 8px; }
+
+  .btn-ask {
+    background: #ff6a94; color: #fff;
+    padding: 9px 20px; border-radius: 8px;
+    border: none; cursor: pointer;
+    font-weight: 600; font-size: 14px;
+    transition: background 0.15s;
+  }
+  .btn-ask:hover { background: #e8588a; }
+  .btn-ask:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-cancel {
+    background: #2a2a3a; color: #888;
+    padding: 9px 18px; border-radius: 8px;
+    border: none; cursor: pointer; font-size: 14px;
+  }
+  .btn-cancel:hover { color: #bbb; }
+
+  /* Spinner dots */
+  .dots { display: inline-flex; gap: 4px; align-items: center; }
+  .dots span {
+    width: 6px; height: 6px;
+    background: currentColor;
+    border-radius: 50%;
+    animation: bounce 1.2s infinite;
+  }
+  .dots span:nth-child(2) { animation-delay: 0.2s; }
+  .dots span:nth-child(3) { animation-delay: 0.4s; }
+
+  @keyframes bounce {
+    0%, 80%, 100% { transform: scale(0.5); opacity: 0.3; }
+    40% { transform: scale(1); opacity: 1; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">Scholar<span>FM</span></div>
+  <div class="tagline">AI podcast for research papers</div>
+</header>
+
+<main>
+
+  <!-- ── Input Card ─────────────────────────────────────────────────────── -->
+  <div class="card" id="inputCard">
+    <div class="card-label">Load a Research Paper</div>
+
+    <div class="tab-row">
+      <button class="tab active" onclick="switchTab('text', this)">Paste Text</button>
+      <button class="tab" onclick="switchTab('pdf', this)">Upload PDF</button>
+    </div>
+
+    <div id="tabText">
+      <textarea id="paperText" placeholder="Paste the abstract, introduction, or full text of any research paper here…"></textarea>
+    </div>
+
+    <div id="tabPdf" style="display:none">
+      <div class="file-drop" id="fileDrop"
+           onclick="document.getElementById('pdfInput').click()"
+           ondragover="fileDrop.classList.add('dragover'); event.preventDefault()"
+           ondragleave="fileDrop.classList.remove('dragover')"
+           ondrop="onDrop(event)">
+        <div class="icon">📄</div>
+        <p id="fileLabel">Click to upload or drag &amp; drop a PDF</p>
+        <small id="fileSize">Max 20 MB</small>
+      </div>
+      <input type="file" id="pdfInput" accept=".pdf" onchange="handleFile(this.files[0])" />
+    </div>
+
+    <div class="error-banner" id="errorBanner"></div>
+
+    <button class="btn-primary" id="generateBtn" onclick="generatePodcast()">
+      🎙️ Generate Podcast
+    </button>
+  </div>
+
+  <!-- ── Player Card ────────────────────────────────────────────────────── -->
+  <div class="card player-card" id="playerCard">
+    <div class="now-playing">
+      <div class="wave-icon">📻</div>
+      <div class="now-playing-info">
+        <h3>Research Paper Podcast</h3>
+        <p>Alex &amp; Maya · ScholarFM</p>
+      </div>
+      <button class="btn-back" onclick="resetToInput()">← New paper</button>
+    </div>
+
+    <div class="progress-bar">
+      <div class="progress-fill" id="progressFill"></div>
+    </div>
+
+    <div class="interrupt-panel" id="interruptPanel">
+      <h4>🙋 Ask the hosts</h4>
+      <textarea id="questionInput" placeholder="What would you like to ask Alex and Maya?"></textarea>
+      <div class="interrupt-actions">
+        <button class="btn-ask" id="askBtn" onclick="submitQuestion()">Ask</button>
+        <button class="btn-cancel" onclick="cancelInterrupt()">Cancel — Resume</button>
+      </div>
+    </div>
+
+    <div class="transcript" id="transcript"></div>
+
+    <div class="controls">
+      <button class="btn-control btn-play" id="playBtn" onclick="togglePlay()">▶ Play</button>
+      <button class="btn-control btn-interrupt" id="interruptBtn" onclick="openInterrupt()" disabled>✋ Ask a Question</button>
+    </div>
+
+    <div class="status-bar" id="statusBar"></div>
+  </div>
+
+</main>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let podcastScript = [];
+let currentIdx = 0;
+let isPlaying = false;
+let isInterrupted = false;
+let synth = window.speechSynthesis;
+let voices = [];
+let paperText = "";
+let selectedFile = null;
+
+// ── Voices ─────────────────────────────────────────────────────────────────
+function loadVoices() { voices = synth.getVoices(); }
+loadVoices();
+if (speechSynthesis.onvoiceschanged !== undefined) {
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+function getVoice(speaker) {
+  const en = voices.filter(v => v.lang.startsWith("en"));
+  if (speaker === "Alex") {
+    return en.find(v => /\b(male|daniel|fred|alex|bruce|ralph|tom|james|oliver|guy)\b/i.test(v.name))
+      || (en.length > 1 ? en[1] : en[0]) || null;
+  }
+  return en.find(v => /\b(female|samantha|karen|victoria|moira|fiona|tessa|zira|kate|susan|linda)\b/i.test(v.name))
+    || en[0] || null;
+}
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tabText').style.display = tab === 'text' ? '' : 'none';
+  document.getElementById('tabPdf').style.display = tab === 'pdf' ? '' : 'none';
+  hideError();
+}
+
+// ── File handling ──────────────────────────────────────────────────────────
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('fileDrop').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) handleFile(file);
+}
+
+function handleFile(file) {
+  if (!file.name.toLowerCase().endsWith('.pdf')) {
+    showError('Please upload a PDF file.');
+    return;
+  }
+  selectedFile = file;
+  document.getElementById('fileLabel').textContent = `✓ ${file.name}`;
+  document.getElementById('fileSize').textContent = `${(file.size / 1024).toFixed(0)} KB`;
+  hideError();
+}
+
+// ── Error display ──────────────────────────────────────────────────────────
+function showError(msg) {
+  const el = document.getElementById('errorBanner');
+  el.textContent = '⚠️ ' + msg;
+  el.classList.add('visible');
+}
+
+function hideError() {
+  document.getElementById('errorBanner').classList.remove('visible');
+}
+
+// ── Generate podcast ───────────────────────────────────────────────────────
+async function generatePodcast() {
+  const btn = document.getElementById('generateBtn');
+  const textInput = document.getElementById('paperText').value.trim();
+  hideError();
+
+  if (!textInput && !selectedFile) {
+    showError('Please paste paper text or upload a PDF first.');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="dots"><span></span><span></span><span></span></span>&nbsp; Generating…';
+
+  podcastScript = [];
+  currentIdx = 0;
+  document.getElementById('transcript').innerHTML = '';
+
+  const formData = new FormData();
+  if (selectedFile) {
+    formData.append('file', selectedFile);
+  } else {
+    formData.append('text', textInput);
+    paperText = textInput;
+  }
+
+  try {
+    const res = await fetch('/generate', { method: 'POST', body: formData });
+
+    if (!res.ok) {
+      const detail = await res.json().then(j => j.detail).catch(() => res.statusText);
+      throw new Error(detail);
+    }
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += dec.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+
+        try {
+          const parsed = JSON.parse(data);
+          // Check if server sent an error object
+          if (parsed.error) throw new Error(parsed.error);
+          if (parsed.speaker && parsed.text) {
+            podcastScript.push(parsed);
+            appendTurn(parsed, podcastScript.length - 1);
+          }
+        } catch (e) {
+          if (e.message && !e.message.includes('JSON')) throw e;
+        }
+      }
+    }
+
+    if (podcastScript.length === 0) {
+      throw new Error('No podcast turns were generated. Check that your API key is correct and the paper text is readable.');
+    }
+
+    // Show player
+    document.getElementById('inputCard').style.display = 'none';
+    document.getElementById('playerCard').classList.add('visible');
+    document.getElementById('interruptBtn').disabled = false;
+    setStatus(`${podcastScript.length} turns ready — press Play`);
+
+  } catch (err) {
+    showError(err.message || 'Something went wrong. Check your terminal for details.');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '🎙️ Generate Podcast';
+  }
+}
+
+// ── Transcript ─────────────────────────────────────────────────────────────
+function appendTurn(turn, idx, cls = '') {
+  const speakerCls = turn.speaker.toLowerCase();
+  const div = document.createElement('div');
+  div.className = `turn ${cls}`;
+  div.id = `turn-${idx}`;
+  div.innerHTML = `
+    <div class="avatar ${speakerCls}">${turn.speaker[0]}</div>
+    <div class="bubble">
+      <div class="speaker-name ${speakerCls}">${turn.speaker}</div>
+      ${esc(turn.text)}
+    </div>`;
+  document.getElementById('transcript').appendChild(div);
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function setActiveTurn(idx) {
+  document.querySelectorAll('.turn').forEach(t => t.classList.remove('active'));
+  const el = document.getElementById(`turn-${idx}`);
+  if (el) {
+    el.classList.add('active');
+    el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  }
+}
+
+function setStatus(msg) { document.getElementById('statusBar').textContent = msg; }
+
+// ── Playback ───────────────────────────────────────────────────────────────
+function togglePlay() {
+  if (isInterrupted) return;
+  if (isPlaying) {
+    pausePlayback();
+  } else {
+    startPlayback();
+  }
+}
+
+function startPlayback() {
+  if (currentIdx >= podcastScript.length) currentIdx = 0;
+  isPlaying = true;
+  document.getElementById('playBtn').textContent = '⏸ Pause';
+  document.getElementById('interruptBtn').disabled = false;
+  playFrom(currentIdx);
+}
+
+function pausePlayback() {
+  synth.cancel();
+  isPlaying = false;
+  document.getElementById('playBtn').textContent = '▶ Resume';
+  setStatus('Paused at turn ' + (currentIdx + 1));
+}
+
+function playFrom(idx) {
+  if (!isPlaying || idx >= podcastScript.length) {
+    if (idx >= podcastScript.length) {
+      isPlaying = false;
+      document.getElementById('playBtn').textContent = '↺ Replay';
+      document.getElementById('progressFill').style.width = '100%';
+      setStatus('Episode complete!');
+    }
+    return;
+  }
+
+  currentIdx = idx;
+  const turn = podcastScript[idx];
+  setActiveTurn(idx);
+  document.getElementById('progressFill').style.width =
+    ((idx + 1) / podcastScript.length * 100) + '%';
+  setStatus(`${turn.speaker} · turn ${idx + 1} of ${podcastScript.length}`);
+
+  const utt = new SpeechSynthesisUtterance(turn.text);
+  utt.rate = 1.05;
+  utt.pitch = turn.speaker === 'Maya' ? 1.2 : 0.88;
+  const v = getVoice(turn.speaker);
+  if (v) utt.voice = v;
+
+  utt.onend = () => {
+    document.getElementById(`turn-${idx}`)?.classList.add('done');
+    if (isPlaying) playFrom(idx + 1);
+  };
+  utt.onerror = (e) => {
+    if (e.error !== 'interrupted' && isPlaying) playFrom(idx + 1);
+  };
+
+  synth.speak(utt);
+}
+
+// ── Interrupt / Q&A ────────────────────────────────────────────────────────
+function openInterrupt() {
+  if (!isPlaying && !currentIdx) return;
+  synth.cancel();
+  isPlaying = false;
+  isInterrupted = true;
+  document.getElementById('playBtn').textContent = '▶ Resume';
+  document.getElementById('playBtn').disabled = true;
+  document.getElementById('interruptBtn').disabled = true;
+  document.getElementById('interruptPanel').classList.add('visible');
+  document.getElementById('questionInput').value = '';
+  document.getElementById('questionInput').focus();
+  setStatus('Hosts paused — ask your question below');
+}
+
+function cancelInterrupt() {
+  isInterrupted = false;
+  document.getElementById('interruptPanel').classList.remove('visible');
+  document.getElementById('playBtn').disabled = false;
+  document.getElementById('interruptBtn').disabled = false;
+  startPlayback();
+}
+
+async function submitQuestion() {
+  const q = document.getElementById('questionInput').value.trim();
+  if (!q) { document.getElementById('questionInput').focus(); return; }
+
+  const askBtn = document.getElementById('askBtn');
+  askBtn.disabled = true;
+  askBtn.textContent = 'Asking…';
+
+  const contextSummary = podcastScript
+    .slice(Math.max(0, currentIdx - 4), currentIdx + 1)
+    .map(t => `${t.speaker}: ${t.text}`)
+    .join('\n');
+
+  try {
+    const res = await fetch('/question', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ question: q, paper_text: paperText, context_summary: contextSummary }),
+    });
+
+    if (!res.ok) {
+      const detail = await res.json().then(j => j.detail).catch(() => res.statusText);
+      throw new Error(detail);
+    }
+
+    const data = await res.json();
+    const answerTurns = data.turns || [];
+
+    // Inject answer turns
+    const answerStart = podcastScript.length;
+    answerTurns.forEach((turn, i) => {
+      podcastScript.push(turn);
+      appendTurn(turn, answerStart + i, 'answer');
+    });
+
+    // Reset & play answer then resume
+    document.getElementById('interruptPanel').classList.remove('visible');
+    document.getElementById('questionInput').value = '';
+    askBtn.disabled = false;
+    askBtn.textContent = 'Ask';
+    isInterrupted = false;
+    document.getElementById('playBtn').disabled = false;
+    document.getElementById('interruptBtn').disabled = false;
+
+    isPlaying = true;
+    document.getElementById('playBtn').textContent = '⏸ Pause';
+    setStatus('Hosts answering your question…');
+
+    playAnswerSequence(answerStart, answerTurns.length, () => {
+      setStatus('Resuming podcast…');
+      playFrom(currentIdx + 1);
+    });
+
+  } catch (err) {
+    showError('Could not get an answer: ' + err.message);
+    askBtn.disabled = false;
+    askBtn.textContent = 'Ask';
+  }
+}
+
+function playAnswerSequence(startIdx, count, onDone) {
+  let i = 0;
+  function next() {
+    if (!isPlaying || i >= count) { onDone(); return; }
+    const idx = startIdx + i;
+    const turn = podcastScript[idx];
+    setActiveTurn(idx);
+    setStatus(`${turn.speaker} answering… (${i + 1}/${count})`);
+
+    const utt = new SpeechSynthesisUtterance(turn.text);
+    utt.rate = 1.05;
+    utt.pitch = turn.speaker === 'Maya' ? 1.2 : 0.88;
+    const v = getVoice(turn.speaker);
+    if (v) utt.voice = v;
+    utt.onend = () => {
+      document.getElementById(`turn-${idx}`)?.classList.add('done');
+      i++;
+      next();
+    };
+    utt.onerror = (e) => { if (e.error !== 'interrupted') { i++; next(); } };
+    synth.speak(utt);
+  }
+  next();
+}
+
+// ── Reset ──────────────────────────────────────────────────────────────────
+function resetToInput() {
+  synth.cancel();
+  isPlaying = false;
+  isInterrupted = false;
+  podcastScript = [];
+  currentIdx = 0;
+  paperText = "";
+  selectedFile = null;
+  document.getElementById('transcript').innerHTML = '';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('interruptPanel').classList.remove('visible');
+  document.getElementById('playerCard').classList.remove('visible');
+  document.getElementById('inputCard').style.display = '';
+  document.getElementById('paperText').value = '';
+  document.getElementById('fileLabel').textContent = 'Click to upload or drag & drop a PDF';
+  document.getElementById('fileSize').textContent = 'Max 20 MB';
+  document.getElementById('pdfInput').value = '';
+  hideError();
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,952 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>ScholarFM Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --bg:#07070f; --surface:#0f0f1a; --surface2:#14141f; --surface3:#191926;
+  --border:#1c1c2e; --border2:#252538;
+  --purple:#7c6aff; --purple-dim:#7c6aff18;
+  --pink:#ff6a94; --pink-dim:#ff6a9418;
+  --text:#f0f0f8; --muted:#6b6b8a; --muted2:#3a3a55;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+
+/* Nav */
+.app-nav{
+  display:flex;align-items:center;gap:16px;padding:0 28px;height:60px;
+  background:rgba(7,7,15,.9);backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);position:sticky;top:0;z-index:100;
+}
+.nav-logo{font-size:18px;font-weight:800;}
+.nav-logo span{color:var(--purple);}
+.nav-live{
+  display:flex;align-items:center;gap:6px;font-size:11px;font-weight:700;
+  color:#ff4444;letter-spacing:.5px;text-transform:uppercase;
+}
+.live-dot{width:7px;height:7px;border-radius:50%;background:#ff4444;animation:blink 1.5s infinite;}
+@keyframes blink{0%,100%{opacity:1;}50%{opacity:.3;}}
+.nav-user{display:flex;align-items:center;gap:10px;margin-left:auto;}
+.user-avatar{
+  width:32px;height:32px;border-radius:50%;background:var(--purple-dim);
+  border:1px solid var(--purple);display:flex;align-items:center;justify-content:center;
+  font-size:13px;font-weight:700;color:var(--purple);cursor:pointer;
+}
+.btn-signout{
+  padding:6px 14px;border-radius:7px;border:1px solid var(--border);
+  background:none;color:var(--muted);font-size:12px;cursor:pointer;font-family:'Inter',sans-serif;
+}
+.btn-signout:hover{color:var(--text);border-color:var(--muted2);}
+
+/* Layout */
+.app-body{display:flex;flex:1;height:calc(100vh - 60px);}
+
+/* Sidebar */
+.sidebar{
+  width:280px;flex-shrink:0;border-right:1px solid var(--border);
+  display:flex;flex-direction:column;overflow:hidden;
+}
+.sidebar-header{
+  padding:20px;border-bottom:1px solid var(--border);
+  font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.8px;text-transform:uppercase;
+}
+.sidebar-section{padding:16px 20px 8px;font-size:11px;font-weight:600;color:var(--muted2);letter-spacing:.5px;text-transform:uppercase;}
+
+/* Paper upload area */
+.upload-area{
+  border:2px dashed var(--border2);border-radius:12px;
+  padding:20px;text-align:center;cursor:pointer;transition:all .2s;
+  margin:12px 16px;
+}
+.upload-area:hover{border-color:var(--purple);background:var(--purple-dim);}
+.upload-area.dragover{border-color:var(--purple);background:var(--purple-dim);}
+.upload-icon{font-size:24px;margin-bottom:8px;}
+.upload-area p{font-size:13px;color:var(--muted);}
+.upload-area small{font-size:11px;color:var(--muted2);margin-top:4px;display:block;}
+input[type=file]{display:none;}
+
+.or-paste{text-align:center;font-size:11px;color:var(--muted2);margin:4px 16px;}
+
+.paste-btn{
+  margin:4px 16px 12px;width:calc(100% - 32px);
+  padding:10px;border-radius:8px;border:1px solid var(--border);
+  background:none;color:var(--muted);font-size:13px;cursor:pointer;
+  transition:all .15s;font-family:'Inter',sans-serif;
+}
+.paste-btn:hover{color:var(--text);border-color:var(--muted2);}
+
+/* Sample papers list */
+.sample-list{display:flex;flex-direction:column;gap:1px;padding:0 8px;}
+.sample-item{
+  display:flex;align-items:flex-start;gap:10px;padding:10px 12px;
+  border-radius:8px;cursor:pointer;transition:background .15s;
+}
+.sample-item:hover{background:var(--surface2);}
+.sample-item.active{background:var(--purple-dim);border:1px solid #7c6aff33;}
+.sample-dot{width:8px;height:8px;border-radius:50%;flex-shrink:0;margin-top:5px;}
+.dot-ai{background:var(--purple);}
+.dot-bio{background:#4ade80;}
+.dot-neuro{background:#f5a623;}
+.sample-info h4{font-size:13px;font-weight:600;line-height:1.3;margin-bottom:2px;}
+.sample-info p{font-size:11px;color:var(--muted);}
+
+/* Main studio */
+.studio{flex:1;display:flex;flex-direction:column;overflow:hidden;position:relative;}
+
+/* Studio bg */
+.studio-bg{
+  position:absolute;inset:0;pointer-events:none;overflow:hidden;
+}
+.studio-bg::before{
+  content:'';position:absolute;top:-200px;left:-200px;width:600px;height:600px;
+  background:radial-gradient(circle,#7c6aff12 0%,transparent 60%);
+}
+.studio-bg::after{
+  content:'';position:absolute;bottom:-200px;right:-200px;width:600px;height:600px;
+  background:radial-gradient(circle,#ff6a9410 0%,transparent 60%);
+}
+
+/* Empty state */
+.empty-state{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  text-align:center;padding:40px;position:relative;z-index:1;
+}
+.empty-icon{font-size:56px;margin-bottom:20px;opacity:.4;}
+.empty-state h2{font-size:20px;font-weight:700;margin-bottom:10px;color:var(--muted);}
+.empty-state p{font-size:14px;color:var(--muted2);max-width:320px;line-height:1.6;}
+
+/* Studio active (hosts + waveform) */
+.studio-main{
+  flex:1;display:none;flex-direction:column;overflow:hidden;position:relative;z-index:1;
+}
+.studio-main.visible{display:flex;}
+
+/* Hosts */
+.hosts-stage{
+  display:flex;align-items:center;justify-content:center;gap:40px;
+  padding:32px 24px 24px;flex-shrink:0;
+}
+.host-card{
+  display:flex;flex-direction:column;align-items:center;gap:10px;
+  padding:20px 28px;border-radius:20px;border:1px solid var(--border);
+  background:var(--surface);transition:all .3s;position:relative;
+  min-width:130px;
+}
+.host-card.speaking-alex{
+  border-color:#7c6aff55;background:linear-gradient(135deg,#7c6aff10,var(--surface));
+  box-shadow:0 0 40px #7c6aff22;
+}
+.host-card.speaking-maya{
+  border-color:#ff6a9455;background:linear-gradient(135deg,var(--surface),#ff6a9410);
+  box-shadow:0 0 40px #ff6a9422;
+}
+
+.host-ring{
+  position:relative;width:64px;height:64px;
+  display:flex;align-items:center;justify-content:center;
+}
+.ring-pulse{
+  position:absolute;inset:-4px;border-radius:50%;opacity:0;
+}
+.host-card.speaking-alex .ring-pulse{border:2px solid var(--purple);animation:ring-anim 1.5s ease-out infinite;}
+.host-card.speaking-maya .ring-pulse{border:2px solid var(--pink);animation:ring-anim 1.5s ease-out infinite;}
+@keyframes ring-anim{0%{transform:scale(.9);opacity:.8;}100%{transform:scale(1.3);opacity:0;}}
+.host-avatar-lg{
+  width:64px;height:64px;border-radius:50%;
+  display:flex;align-items:center;justify-content:center;
+  font-size:22px;font-weight:800;
+}
+.avatar-alex-lg{background:#7c6aff25;color:var(--purple);border:2px solid #7c6aff44;}
+.avatar-maya-lg{background:#ff6a9425;color:var(--pink);border:2px solid #ff6a9444;}
+.host-label{font-size:14px;font-weight:700;}
+.host-role{font-size:11px;color:var(--muted);}
+.mic-icon{
+  font-size:16px;opacity:0;transition:opacity .2s;
+}
+.host-card.speaking-alex .mic-icon,
+.host-card.speaking-maya .mic-icon{opacity:1;}
+
+/* Center waveform */
+.center-wave{display:flex;flex-direction:column;align-items:center;gap:12px;}
+.wave-bars{display:flex;align-items:center;gap:3px;height:40px;}
+.wbar{
+  width:3px;border-radius:2px;background:var(--purple);
+  animation:wbar-idle 2s ease-in-out infinite;
+  transform-origin:center;
+}
+.wbar:nth-child(2n){background:var(--pink);}
+.wbar.active{animation:wbar-active 0.5s ease-in-out infinite alternate;}
+@keyframes wbar-idle{0%,100%{height:4px;opacity:.2;}50%{height:10px;opacity:.4;}}
+@keyframes wbar-active{0%{height:8px;}100%{height:36px;}}
+
+/* Progress */
+.progress-wrap{padding:0 28px 8px;flex-shrink:0;}
+.progress-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:6px;}
+.progress-bar{height:3px;background:var(--border2);border-radius:2px;overflow:hidden;cursor:pointer;}
+.progress-fill{height:100%;background:linear-gradient(90deg,var(--purple),var(--pink));border-radius:2px;width:0%;transition:width .4s;}
+
+/* Transcript */
+.transcript-wrap{
+  flex:1;overflow-y:auto;padding:8px 20px 16px;
+  scrollbar-width:thin;scrollbar-color:var(--border2) transparent;
+}
+.transcript-wrap::-webkit-scrollbar{width:4px;}
+.transcript-wrap::-webkit-scrollbar-track{background:transparent;}
+.transcript-wrap::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px;}
+
+.turn{display:flex;gap:10px;margin-bottom:14px;opacity:.35;transition:opacity .4s;}
+.turn.active{opacity:1;}
+.turn.done{opacity:.6;}
+.t-avatar{
+  width:30px;height:30px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:11px;font-weight:700;flex-shrink:0;margin-top:2px;
+}
+.t-avatar.alex{background:#7c6aff20;color:var(--purple);}
+.t-avatar.maya{background:#ff6a9420;color:var(--pink);}
+.t-bubble{
+  background:var(--surface2);border-radius:12px;padding:10px 14px;
+  font-size:13px;line-height:1.65;flex:1;border:1px solid transparent;
+}
+.turn.active .t-bubble{border-color:var(--border2);}
+.turn.answer .t-bubble{background:#1a1520;border-color:#ff6a9430;border-left:2px solid var(--pink);}
+.t-name{font-size:10px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;margin-bottom:5px;}
+.t-name.alex{color:var(--purple);}
+.t-name.maya{color:var(--pink);}
+
+/* Controls bar */
+.controls-bar{
+  padding:14px 20px;border-top:1px solid var(--border);
+  display:flex;align-items:center;gap:10px;flex-shrink:0;
+  background:var(--surface);
+}
+.btn-play{
+  width:48px;height:48px;border-radius:50%;border:none;
+  background:var(--purple);color:#fff;font-size:18px;
+  cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;box-shadow:0 0 20px #7c6aff44;
+}
+.btn-play:hover{background:#6a58e8;transform:scale(1.05);}
+.btn-play:disabled{opacity:.4;cursor:not-allowed;}
+.control-info{flex:1;}
+.control-title{font-size:13px;font-weight:600;}
+.control-status{font-size:11px;color:var(--muted);margin-top:2px;}
+.btn-interrupt{
+  padding:10px 18px;border-radius:10px;
+  background:var(--pink-dim);border:1px solid #ff6a9444;
+  color:var(--pink);font-size:13px;font-weight:700;cursor:pointer;
+  transition:all .15s;font-family:'Inter',sans-serif;
+}
+.btn-interrupt:hover{background:#ff6a9428;}
+.btn-interrupt:disabled{opacity:.3;cursor:not-allowed;}
+
+/* Ask panel (slide up) */
+.ask-panel{
+  position:absolute;bottom:0;left:0;right:0;
+  background:var(--surface);border-top:1px solid #ff6a9444;
+  padding:20px 24px;transform:translateY(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);
+  z-index:50;
+}
+.ask-panel.open{transform:translateY(0);}
+.ask-header{display:flex;align-items:center;gap:10px;margin-bottom:14px;}
+.ask-header h3{font-size:14px;font-weight:700;color:var(--pink);}
+.ask-header p{font-size:12px;color:var(--muted);}
+.ask-close{margin-left:auto;background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1;}
+.ask-input{
+  width:100%;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:10px;padding:12px 14px;color:var(--text);font-size:14px;
+  outline:none;font-family:'Inter',sans-serif;margin-bottom:12px;
+  resize:none;height:70px;
+}
+.ask-input:focus{border-color:#ff6a9455;}
+.ask-actions{display:flex;gap:8px;}
+.btn-ask{
+  padding:10px 22px;border-radius:8px;border:none;
+  background:var(--pink);color:#fff;font-size:14px;font-weight:700;cursor:pointer;
+  font-family:'Inter',sans-serif;transition:background .15s;
+}
+.btn-ask:hover{background:#e8588a;}
+.btn-ask:disabled{opacity:.4;cursor:not-allowed;}
+.btn-cancel-ask{
+  padding:10px 18px;border-radius:8px;border:1px solid var(--border);
+  background:none;color:var(--muted);font-size:13px;cursor:pointer;
+  font-family:'Inter',sans-serif;
+}
+
+/* Paste modal */
+.modal-overlay{
+  position:fixed;inset:0;background:#000a;backdrop-filter:blur(8px);
+  display:flex;align-items:center;justify-content:center;z-index:200;
+  opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.modal-overlay.open{opacity:1;pointer-events:all;}
+.modal{
+  background:var(--surface);border:1px solid var(--border);border-radius:20px;
+  padding:28px;width:100%;max-width:560px;margin:24px;
+}
+.modal h3{font-size:18px;font-weight:700;margin-bottom:6px;}
+.modal p{font-size:13px;color:var(--muted);margin-bottom:16px;}
+.modal textarea{
+  width:100%;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:10px;padding:14px;color:var(--text);font-size:13px;
+  font-family:'Inter',sans-serif;outline:none;resize:vertical;
+  min-height:180px;margin-bottom:14px;line-height:1.6;
+}
+.modal textarea:focus{border-color:var(--purple);}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;}
+.btn-modal-cancel{
+  padding:10px 18px;border-radius:8px;border:1px solid var(--border);
+  background:none;color:var(--muted);cursor:pointer;font-family:'Inter',sans-serif;font-size:14px;
+}
+.btn-modal-go{
+  padding:10px 22px;border-radius:8px;border:none;
+  background:var(--purple);color:#fff;font-weight:700;cursor:pointer;
+  font-family:'Inter',sans-serif;font-size:14px;
+}
+.btn-modal-go:hover{background:#6a58e8;}
+
+/* Loading overlay */
+.loading-overlay{
+  position:absolute;inset:0;background:rgba(7,7,15,.85);
+  display:none;flex-direction:column;align-items:center;justify-content:center;
+  gap:20px;z-index:100;backdrop-filter:blur(4px);
+}
+.loading-overlay.visible{display:flex;}
+.loader-wave{display:flex;gap:5px;align-items:center;}
+.lbar{width:5px;border-radius:3px;background:var(--purple);animation:lbar 1.2s ease-in-out infinite;}
+.lbar:nth-child(1){animation-delay:0s;height:20px;}
+.lbar:nth-child(2){animation-delay:.15s;height:36px;}
+.lbar:nth-child(3){animation-delay:.3s;height:28px;}
+.lbar:nth-child(4){animation-delay:.45s;height:44px;}
+.lbar:nth-child(5){animation-delay:.6s;height:24px;}
+.lbar:nth-child(6){animation-delay:.75s;height:38px;}
+.lbar:nth-child(7){animation-delay:.9s;height:20px;}
+@keyframes lbar{0%,100%{transform:scaleY(.3);opacity:.3;}50%{transform:scaleY(1);opacity:1;}}
+.loading-text{font-size:14px;color:var(--muted);}
+.loading-sub{font-size:12px;color:var(--muted2);}
+
+/* Error banner */
+.err-toast{
+  position:absolute;top:16px;left:50%;transform:translateX(-50%);
+  background:#2a1520;border:1px solid #ff4d6d55;border-radius:10px;
+  padding:12px 20px;font-size:13px;color:#ff7a94;max-width:420px;
+  text-align:center;z-index:150;opacity:0;pointer-events:none;transition:opacity .2s;white-space:nowrap;
+}
+.err-toast.visible{opacity:1;pointer-events:all;}
+
+/* Responsive */
+@media(max-width:700px){
+  .sidebar{display:none;}
+  .hosts-stage{gap:20px;padding:20px 16px 16px;}
+  .host-card{padding:14px 18px;min-width:100px;}
+}
+</style>
+</head>
+<body>
+
+<!-- Nav -->
+<div class="app-nav">
+  <div class="nav-logo">Scholar<span>FM</span></div>
+  <div class="nav-live" id="navLive" style="display:none">
+    <div class="live-dot"></div> ON AIR
+  </div>
+  <div class="nav-user">
+    <div class="user-avatar" id="userAvatar">?</div>
+    <button class="btn-signout" onclick="signOut()">Sign out</button>
+  </div>
+</div>
+
+<div class="app-body">
+
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="sidebar-header">📚 Your Library</div>
+
+    <!-- Upload -->
+    <div class="sidebar-section">Upload Paper</div>
+    <div class="upload-area" id="uploadArea"
+         onclick="document.getElementById('pdfInput').click()"
+         ondragover="event.preventDefault();this.classList.add('dragover')"
+         ondragleave="this.classList.remove('dragover')"
+         ondrop="onDrop(event)">
+      <div class="upload-icon">📄</div>
+      <p id="uploadLabel">Click or drag a PDF</p>
+      <small>Max 20 MB</small>
+    </div>
+    <input type="file" id="pdfInput" accept=".pdf" onchange="handleFile(this.files[0])"/>
+    <div class="or-paste">— or —</div>
+    <button class="paste-btn" onclick="openPasteModal()">✏️ Paste paper text</button>
+
+    <!-- Sample papers -->
+    <div class="sidebar-section">Free Sample Papers</div>
+    <div class="sample-list">
+      <div class="sample-item" id="s-attention" onclick="loadSample('attention')">
+        <div class="sample-dot dot-ai"></div>
+        <div class="sample-info">
+          <h4>Attention Is All You Need</h4>
+          <p>AI · 2017</p>
+        </div>
+      </div>
+      <div class="sample-item" id="s-crispr" onclick="loadSample('crispr')">
+        <div class="sample-dot dot-bio"></div>
+        <div class="sample-info">
+          <h4>CRISPR-Cas9 Gene Editing</h4>
+          <p>Biology · 2012</p>
+        </div>
+      </div>
+      <div class="sample-item" id="s-sleep" onclick="loadSample('sleep')">
+        <div class="sample-dot dot-neuro"></div>
+        <div class="sample-info">
+          <h4>Sleep & Memory</h4>
+          <p>Neuroscience · 2019</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Studio -->
+  <div class="studio" id="studio">
+    <div class="studio-bg"></div>
+
+    <!-- Empty state -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-icon">🎙</div>
+      <h2>Pick a paper to get started</h2>
+      <p>Choose a sample paper from the sidebar, upload your own PDF, or paste any research text.</p>
+    </div>
+
+    <!-- Active studio -->
+    <div class="studio-main" id="studioMain">
+
+      <!-- Hosts stage -->
+      <div class="hosts-stage">
+        <div class="host-card" id="cardAlex">
+          <div class="host-ring"><div class="ring-pulse"></div><div class="host-avatar-lg avatar-alex-lg">A</div></div>
+          <div class="host-label">Alex</div>
+          <div class="host-role">The Curious One</div>
+          <div class="mic-icon">🎙</div>
+        </div>
+
+        <div class="center-wave">
+          <div class="wave-bars" id="waveBars">
+            <div class="wbar" style="height:6px"></div><div class="wbar" style="height:12px"></div>
+            <div class="wbar" style="height:8px"></div><div class="wbar" style="height:16px"></div>
+            <div class="wbar" style="height:6px"></div><div class="wbar" style="height:14px"></div>
+            <div class="wbar" style="height:10px"></div><div class="wbar" style="height:18px"></div>
+            <div class="wbar" style="height:6px"></div>
+          </div>
+        </div>
+
+        <div class="host-card" id="cardMaya">
+          <div class="host-ring"><div class="ring-pulse"></div><div class="host-avatar-lg avatar-maya-lg">M</div></div>
+          <div class="host-label">Maya</div>
+          <div class="host-role">The Expert</div>
+          <div class="mic-icon">🎙</div>
+        </div>
+      </div>
+
+      <!-- Progress -->
+      <div class="progress-wrap">
+        <div class="progress-row">
+          <span id="progressLabel">Ready to play</span>
+          <span id="progressCount">0 / 0</span>
+        </div>
+        <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      </div>
+
+      <!-- Transcript -->
+      <div class="transcript-wrap" id="transcript"></div>
+
+      <!-- Controls -->
+      <div class="controls-bar">
+        <button class="btn-play" id="playBtn" onclick="togglePlay()" disabled>▶</button>
+        <div class="control-info">
+          <div class="control-title" id="controlTitle">—</div>
+          <div class="control-status" id="controlStatus">Select a paper to begin</div>
+        </div>
+        <button class="btn-interrupt" id="interruptBtn" onclick="openAsk()" disabled>✋ Ask the hosts</button>
+      </div>
+
+      <!-- Loading overlay -->
+      <div class="loading-overlay" id="loadingOverlay">
+        <div class="loader-wave">
+          <div class="lbar"></div><div class="lbar"></div><div class="lbar"></div>
+          <div class="lbar"></div><div class="lbar"></div><div class="lbar"></div>
+          <div class="lbar"></div>
+        </div>
+        <div class="loading-text">Alex & Maya are reading the paper…</div>
+        <div class="loading-sub" id="loadingTurns">Preparing your episode</div>
+      </div>
+
+      <!-- Ask panel -->
+      <div class="ask-panel" id="askPanel">
+        <div class="ask-header">
+          <div>
+            <h3>🙋 Ask the hosts</h3>
+            <p>They'll answer and resume exactly where they paused</p>
+          </div>
+          <button class="ask-close" onclick="cancelAsk()">✕</button>
+        </div>
+        <textarea class="ask-input" id="askInput" placeholder="What are you curious about?" onkeydown="if(event.ctrlKey&&event.key==='Enter')sendQuestion()"></textarea>
+        <div class="ask-actions">
+          <button class="btn-ask" id="sendBtn" onclick="sendQuestion()">Send question</button>
+          <button class="btn-cancel-ask" onclick="cancelAsk()">Cancel — resume</button>
+        </div>
+      </div>
+
+    </div><!-- studio-main -->
+
+    <!-- Error toast -->
+    <div class="err-toast" id="errToast"></div>
+
+  </div><!-- studio -->
+</div><!-- app-body -->
+
+<!-- Paste modal -->
+<div class="modal-overlay" id="pasteModal">
+  <div class="modal">
+    <h3>Paste paper text</h3>
+    <p>Paste the abstract, introduction, or full text of any research paper</p>
+    <textarea id="pasteText" placeholder="Paste research paper text here…"></textarea>
+    <div class="modal-actions">
+      <button class="btn-modal-cancel" onclick="closePasteModal()">Cancel</button>
+      <button class="btn-modal-go" onclick="submitPaste()">Generate Podcast</button>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getAuth, onAuthStateChanged, signOut as fbSignOut } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+
+// ── PASTE YOUR FIREBASE CONFIG HERE ───────────────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyBMj1pVHHDVNJPRYN-QlrLQ51GQEs8WQV0",
+  authDomain: "scholarfm-c5a6d.firebaseapp.com",
+  projectId: "scholarfm-c5a6d",
+  storageBucket: "scholarfm-c5a6d.firebasestorage.app",
+  messagingSenderId: "609436158841",
+  appId: "1:609436158841:web:da83287d15509735f3bda8"
+};
+// ──────────────────────────────────────────────────────────────────────────
+
+const fbApp = initializeApp(firebaseConfig);
+const auth = getAuth(fbApp);
+
+onAuthStateChanged(auth, (user) => {
+  if (!user) {
+    location.href = 'login.html';
+    return;
+  }
+  const initial = (user.displayName || user.email || '?')[0].toUpperCase();
+  document.getElementById('userAvatar').textContent = initial;
+});
+
+window.signOut = async () => {
+  await fbSignOut(auth);
+  location.href = 'login.html';
+};
+</script>
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────
+// Replace with your Railway backend URL after deployment
+const API = window.location.hostname === 'localhost'
+  ? 'http://localhost:8000'
+  : 'https://YOUR_RAILWAY_URL.railway.app';   // ← update after Railway deploy
+
+// ── State ─────────────────────────────────────────────────────────────────
+let turns = [];
+let idx = 0;
+let playing = false;
+let interrupted = false;
+let paperText = '';
+let currentPaper = '';
+let synth = window.speechSynthesis;
+let voices = [];
+
+// ── Voices ────────────────────────────────────────────────────────────────
+function loadVoices() { voices = synth.getVoices(); }
+loadVoices();
+if (speechSynthesis.onvoiceschanged !== undefined) {
+  speechSynthesis.onvoiceschanged = loadVoices;
+}
+
+function getVoice(speaker) {
+  const en = voices.filter(v => v.lang.startsWith('en'));
+  if (!en.length) return null;
+  if (speaker === 'Alex') {
+    return en.find(v => /\b(daniel|fred|alex|bruce|ralph|tom|james|oliver|liam|aaron|arthur)\b/i.test(v.name))
+      || (en.length > 1 ? en[1] : en[0]);
+  }
+  return en.find(v => /\b(samantha|karen|victoria|moira|fiona|tessa|zira|kate|susan|linda|sarah|emily|ava|nicky)\b/i.test(v.name))
+    || en[0];
+}
+
+// Natural speech: parse CAPS words and add slight rate/pitch variation
+function buildUtt(turn) {
+  let text = turn.text;
+  // Replace em-dash interruptions with a brief pause via comma
+  text = text.replace(/—/g, ', ');
+  // Expand "..." into natural pause (browser uses commas as micro-pauses)
+  text = text.replace(/\.\.\./g, ', ');
+
+  const utt = new SpeechSynthesisUtterance(text);
+  utt.lang = 'en-US';
+  utt.rate = turn.speaker === 'Alex' ? 1.08 : 1.0;
+  utt.pitch = turn.speaker === 'Maya' ? 1.18 : 0.88;
+
+  // Vary rate slightly based on content mood
+  if (/!/.test(turn.text)) { utt.rate += 0.05; utt.pitch += 0.05; }
+  if (/\?$/.test(turn.text.trim())) { utt.pitch += 0.08; }
+
+  const v = getVoice(turn.speaker);
+  if (v) utt.voice = v;
+  return utt;
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────
+function showStudio() {
+  document.getElementById('emptyState').style.display = 'none';
+  document.getElementById('studioMain').classList.add('visible');
+}
+
+function setHostSpeaking(speaker) {
+  document.getElementById('cardAlex').className = 'host-card' + (speaker === 'Alex' ? ' speaking-alex' : '');
+  document.getElementById('cardMaya').className = 'host-card' + (speaker === 'Maya' ? ' speaking-maya' : '');
+  // Animate wave bars
+  document.querySelectorAll('.wbar').forEach(b => {
+    b.classList.toggle('active', !!speaker);
+    b.style.background = speaker === 'Maya' ? 'var(--pink)' : 'var(--purple)';
+  });
+  document.getElementById('navLive').style.display = speaker ? '' : 'none';
+}
+
+function appendTurn(turn, i, cls = '') {
+  const sp = turn.speaker.toLowerCase();
+  const div = document.createElement('div');
+  div.className = `turn ${cls}`;
+  div.id = `t${i}`;
+  div.innerHTML = `<div class="t-avatar ${sp}">${turn.speaker[0]}</div>
+    <div class="t-bubble"><div class="t-name ${sp}">${turn.speaker}</div>${esc(turn.text)}</div>`;
+  document.getElementById('transcript').appendChild(div);
+}
+
+function setActive(i) {
+  document.querySelectorAll('.turn').forEach(t => t.classList.remove('active'));
+  const el = document.getElementById(`t${i}`);
+  if (el) { el.classList.add('active'); el.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+}
+
+function updateProgress(i) {
+  const pct = turns.length ? ((i + 1) / turns.length * 100) : 0;
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressCount').textContent = `${i + 1} / ${turns.length}`;
+}
+
+function setStatus(msg) { document.getElementById('controlStatus').textContent = msg; }
+function setTitle(t) { document.getElementById('controlTitle').textContent = t; }
+
+function showErr(msg) {
+  const el = document.getElementById('errToast');
+  el.textContent = '⚠️ ' + msg;
+  el.classList.add('visible');
+  setTimeout(() => el.classList.remove('visible'), 5000);
+}
+
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Load & generate ───────────────────────────────────────────────────────
+function showLoading(on) {
+  document.getElementById('loadingOverlay').classList.toggle('visible', on);
+}
+
+function updateLoadingCount(n) {
+  document.getElementById('loadingTurns').textContent =
+    n > 0 ? `${n} turns generated so far…` : 'Preparing your episode';
+}
+
+async function streamGenerate(url, options = {}) {
+  showStudio();
+  showLoading(true);
+  turns = [];
+  idx = 0;
+  playing = false;
+  interrupted = false;
+  document.getElementById('transcript').innerHTML = '';
+  document.getElementById('progressFill').style.width = '0%';
+  document.getElementById('progressCount').textContent = '0 / 0';
+  document.getElementById('playBtn').disabled = true;
+  document.getElementById('interruptBtn').disabled = true;
+  setTitle('Generating episode…');
+  setStatus('Alex & Maya are reading the paper');
+  setHostSpeaking(null);
+
+  try {
+    const res = await fetch(url, options);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({detail: res.statusText}));
+      throw new Error(err.detail || 'Server error');
+    }
+
+    const reader = res.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const {value, done} = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, {stream: true});
+      const lines = buf.split('\n');
+      buf = lines.pop();
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const data = line.slice(6).trim();
+        if (data === '[DONE]') break;
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed.error) throw new Error(parsed.error);
+          if (parsed.speaker && parsed.text) {
+            turns.push(parsed);
+            appendTurn(parsed, turns.length - 1);
+            updateLoadingCount(turns.length);
+          }
+        } catch(e) {
+          if (e.message && !e.message.includes('JSON')) throw e;
+        }
+      }
+    }
+
+    if (!turns.length) throw new Error('No script generated. Check your API key.');
+
+    showLoading(false);
+    document.getElementById('playBtn').disabled = false;
+    document.getElementById('interruptBtn').disabled = false;
+    setTitle(currentPaper || 'Research Paper Podcast');
+    setStatus(`${turns.length} turns ready — press ▶ to start`);
+    document.getElementById('progressCount').textContent = `0 / ${turns.length}`;
+
+  } catch(e) {
+    showLoading(false);
+    showErr(e.message);
+    setStatus('Error — ' + e.message);
+  }
+}
+
+// ── Sample papers ─────────────────────────────────────────────────────────
+const SAMPLE_LABELS = {
+  attention: 'Attention Is All You Need',
+  crispr: 'CRISPR-Cas9',
+  sleep: 'Sleep & Memory',
+};
+
+window.loadSample = (id) => {
+  document.querySelectorAll('.sample-item').forEach(el => el.classList.remove('active'));
+  document.getElementById(`s-${id}`)?.classList.add('active');
+  currentPaper = SAMPLE_LABELS[id] || id;
+  paperText = '';
+  streamGenerate(`${API}/api/generate/sample/${id}`, {method: 'POST'});
+};
+
+// ── File upload ────────────────────────────────────────────────────────────
+window.onDrop = (e) => {
+  e.preventDefault();
+  document.getElementById('uploadArea').classList.remove('dragover');
+  handleFile(e.dataTransfer.files[0]);
+};
+
+window.handleFile = (file) => {
+  if (!file) return;
+  if (!file.name.toLowerCase().endsWith('.pdf')) { showErr('Please upload a PDF.'); return; }
+  document.getElementById('uploadLabel').textContent = `✓ ${file.name}`;
+  document.querySelectorAll('.sample-item').forEach(el => el.classList.remove('active'));
+  currentPaper = file.name.replace('.pdf','');
+  paperText = '';
+  const form = new FormData();
+  form.append('file', file);
+  streamGenerate(`${API}/api/generate`, {method: 'POST', body: form});
+};
+
+// ── Paste modal ────────────────────────────────────────────────────────────
+window.openPasteModal = () => document.getElementById('pasteModal').classList.add('open');
+window.closePasteModal = () => document.getElementById('pasteModal').classList.remove('open');
+window.submitPaste = () => {
+  const txt = document.getElementById('pasteText').value.trim();
+  if (txt.length < 100) { showErr('Please paste at least 100 characters of paper text.'); return; }
+  closePasteModal();
+  paperText = txt;
+  currentPaper = 'Custom Paper';
+  document.querySelectorAll('.sample-item').forEach(el => el.classList.remove('active'));
+  const form = new FormData();
+  form.append('text', txt);
+  streamGenerate(`${API}/api/generate`, {method: 'POST', body: form});
+};
+
+// ── Playback ──────────────────────────────────────────────────────────────
+window.togglePlay = () => {
+  if (interrupted) return;
+  if (playing) {
+    pausePlayback();
+  } else {
+    startPlayback();
+  }
+};
+
+function startPlayback() {
+  if (idx >= turns.length) idx = 0;
+  playing = true;
+  document.getElementById('playBtn').textContent = '⏸';
+  playFrom(idx);
+}
+
+function pausePlayback() {
+  synth.cancel();
+  playing = false;
+  document.getElementById('playBtn').textContent = '▶';
+  setHostSpeaking(null);
+  setStatus(`Paused at turn ${idx + 1}`);
+}
+
+function playFrom(i) {
+  if (!playing || i >= turns.length) {
+    if (i >= turns.length) {
+      playing = false;
+      document.getElementById('playBtn').textContent = '↺';
+      setHostSpeaking(null);
+      document.getElementById('progressFill').style.width = '100%';
+      setStatus('Episode complete!');
+    }
+    return;
+  }
+
+  idx = i;
+  const turn = turns[i];
+  setActive(i);
+  updateProgress(i);
+  setStatus(`${turn.speaker} · ${i + 1} of ${turns.length}`);
+  setHostSpeaking(turn.speaker);
+
+  const utt = buildUtt(turn);
+
+  utt.onend = () => {
+    document.getElementById(`t${i}`)?.classList.add('done');
+    if (playing) playFrom(i + 1);
+  };
+  utt.onerror = (e) => {
+    if (e.error !== 'interrupted' && playing) playFrom(i + 1);
+  };
+
+  synth.speak(utt);
+}
+
+// ── Ask hosts ─────────────────────────────────────────────────────────────
+window.openAsk = () => {
+  synth.cancel();
+  playing = false;
+  interrupted = true;
+  document.getElementById('playBtn').textContent = '▶';
+  document.getElementById('playBtn').disabled = true;
+  document.getElementById('interruptBtn').disabled = true;
+  document.getElementById('askPanel').classList.add('open');
+  document.getElementById('askInput').value = '';
+  document.getElementById('askInput').focus();
+  setHostSpeaking(null);
+  setStatus('Hosts paused — ask your question');
+};
+
+window.cancelAsk = () => {
+  interrupted = false;
+  document.getElementById('askPanel').classList.remove('open');
+  document.getElementById('playBtn').disabled = false;
+  document.getElementById('interruptBtn').disabled = false;
+  startPlayback();
+};
+
+window.sendQuestion = async () => {
+  const q = document.getElementById('askInput').value.trim();
+  if (!q) { document.getElementById('askInput').focus(); return; }
+
+  const btn = document.getElementById('sendBtn');
+  btn.disabled = true;
+  btn.textContent = 'Asking…';
+
+  const ctx = turns.slice(Math.max(0, idx - 4), idx + 1).map(t => `${t.speaker}: ${t.text}`).join('\n');
+
+  try {
+    const res = await fetch(`${API}/api/question`, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({question: q, paper_text: paperText, context_summary: ctx}),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({detail: res.statusText}));
+      throw new Error(err.detail || 'Error getting answer');
+    }
+    const data = await res.json();
+    const answerTurns = data.turns || [];
+
+    // Inject answer turns
+    const answerStart = turns.length;
+    answerTurns.forEach((t, i) => {
+      turns.push(t);
+      appendTurn(t, answerStart + i, 'answer');
+    });
+
+    // Reset panel
+    document.getElementById('askPanel').classList.remove('open');
+    document.getElementById('askInput').value = '';
+    btn.disabled = false;
+    btn.textContent = 'Send question';
+    interrupted = false;
+    document.getElementById('playBtn').disabled = false;
+    document.getElementById('interruptBtn').disabled = false;
+
+    // Play answer then resume
+    playing = true;
+    document.getElementById('playBtn').textContent = '⏸';
+    setStatus('Hosts are answering…');
+    playAnswerSeq(answerStart, answerTurns.length, () => {
+      setStatus('Resuming episode…');
+      playFrom(idx + 1);
+    });
+
+  } catch(e) {
+    showErr(e.message);
+    btn.disabled = false;
+    btn.textContent = 'Send question';
+  }
+};
+
+function playAnswerSeq(start, count, onDone) {
+  let i = 0;
+  function next() {
+    if (!playing || i >= count) { onDone(); return; }
+    const ti = start + i;
+    const turn = turns[ti];
+    setActive(ti);
+    setHostSpeaking(turn.speaker);
+    setStatus(`${turn.speaker} answering (${i + 1}/${count})`);
+    const utt = buildUtt(turn);
+    utt.onend = () => { document.getElementById(`t${ti}`)?.classList.add('done'); i++; next(); };
+    utt.onerror = (e) => { if (e.error !== 'interrupted') { i++; next(); } };
+    synth.speak(utt);
+  }
+  next();
+}
+
+// ── Sample from URL param ─────────────────────────────────────────────────
+const urlSample = new URLSearchParams(location.search).get('sample');
+if (urlSample) {
+  // Wait for voices to load then auto-load
+  setTimeout(() => loadSample(urlSample), 500);
+}
+</script>
+</body>
+</html>
