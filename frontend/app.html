@@ -570,12 +570,11 @@ let currentPaper = '';
 let currentAudio = null;       // active HTMLAudioElement
 let audioCache = {};           // pre-fetched audio: idx → base64
 
-// ── OpenAI TTS-1-HD ────────────────────────────────────────────────────────
-let fetchingTurn = -1; // track which turn is mid-fetch
+// ── TTS audio cache ────────────────────────────────────────────────────────
+let audioReady = 0; // how many turns have neural audio cached
 
 async function fetchAudio(turn, turnIdx) {
   if (audioCache[turnIdx]) return audioCache[turnIdx];
-  fetchingTurn = turnIdx;
   try {
     const res = await fetch(`${API}/api/tts`, {
       method: 'POST',
@@ -585,13 +584,23 @@ async function fetchAudio(turn, turnIdx) {
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
     audioCache[turnIdx] = data.audio;
+    audioReady++;
+    // Update status as audio loads in background
+    if (!playing) {
+      setStatus(`Neural voices loading… ${audioReady}/${turns.length} ready — press ▶ to play now`);
+    }
+    if (audioReady === turns.length) setStatus('All voices loaded — enjoy! ▶');
     return data.audio;
   } catch(e) {
-    console.warn('TTS fetch failed:', e.message);
-    return null;
-  } finally {
-    fetchingTurn = -1;
+    console.warn(`TTS turn ${turnIdx} failed:`, e.message);
+    return null; // fallback to Web Speech
   }
+}
+
+// Fetch ALL turns in parallel right after script loads
+async function prefetchAllAudio() {
+  audioReady = 0;
+  await Promise.all(turns.map((turn, i) => fetchAudio(turn, i)));
 }
 
 function playBase64Audio(b64, onEnd, onError) {
@@ -604,6 +613,7 @@ function playBase64Audio(b64, onEnd, onError) {
 }
 
 function stopAudio() {
+  window.speechSynthesis?.cancel();
   if (currentAudio) {
     currentAudio.onended = null;
     currentAudio.onerror = null;
@@ -734,8 +744,11 @@ async function streamGenerate(url, options = {}) {
     document.getElementById('playBtn').disabled = false;
     document.getElementById('interruptBtn').disabled = false;
     setTitle(currentPaper || 'Research Paper Podcast');
-    setStatus(`${turns.length} turns ready — press ▶ to start`);
+    setStatus(`Ready — press ▶ to play (loading neural voices in background…)`);
     document.getElementById('progressCount').textContent = `0 / ${turns.length}`;
+
+    // Pre-fetch ALL audio in parallel — don't wait, do it in background
+    prefetchAllAudio();
 
   } catch(e) {
     showLoading(false);
@@ -818,7 +831,7 @@ function pausePlayback() {
   setStatus(`Paused at turn ${idx + 1}`);
 }
 
-async function playFrom(i) {
+function playFrom(i) {
   if (!playing || i >= turns.length) {
     if (i >= turns.length) {
       playing = false;
@@ -837,25 +850,35 @@ async function playFrom(i) {
   setStatus(`${turn.speaker} · ${i + 1} of ${turns.length}`);
   setHostSpeaking(turn.speaker);
 
-  // Pre-fetch next turn in background
-  if (i + 1 < turns.length) fetchAudio(turns[i + 1], i + 1);
+  const onDone = () => {
+    document.getElementById(`t${i}`)?.classList.add('done');
+    if (playing) playFrom(i + 1);
+  };
 
-  const b64 = await fetchAudio(turn, i);
-  if (!playing) return; // paused while fetching
-
-  if (b64) {
-    playBase64Audio(b64,
-      () => { document.getElementById(`t${i}`)?.classList.add('done'); if (playing) playFrom(i + 1); },
-      () => { if (playing) playFrom(i + 1); }
-    );
-  } else {
-    // Fallback to Web Speech if TTS fails
-    const utt = new SpeechSynthesisUtterance(turn.text);
-    utt.rate = turn.speaker === 'Alex' ? 1.08 : 1.0;
-    utt.pitch = turn.speaker === 'Maya' ? 1.18 : 0.88;
-    utt.onend = () => { document.getElementById(`t${i}`)?.classList.add('done'); if (playing) playFrom(i + 1); };
-    window.speechSynthesis.speak(utt);
+  // If neural audio already cached — play it instantly
+  if (audioCache[i]) {
+    playBase64Audio(audioCache[i], onDone, onDone);
+    return;
   }
+
+  // Otherwise use Web Speech immediately (no waiting), neural audio loads for later turns
+  speakWebSpeech(turn, onDone);
+}
+
+function speakWebSpeech(turn, onDone) {
+  const voices = window.speechSynthesis.getVoices();
+  const en = voices.filter(v => v.lang.startsWith('en'));
+  const utt = new SpeechSynthesisUtterance(turn.text.replace(/\([^)]+\)/g, ''));
+  utt.rate = turn.speaker === 'Alex' ? 1.05 : 0.97;
+  utt.pitch = turn.speaker === 'Maya' ? 1.2 : 0.85;
+  if (turn.speaker === 'Alex') {
+    utt.voice = en.find(v => /guy|daniel|james|fred|tom|oliver|aaron/i.test(v.name)) || en[1] || en[0];
+  } else {
+    utt.voice = en.find(v => /jenny|samantha|karen|moira|victoria|fiona|zira|lisa/i.test(v.name)) || en[0];
+  }
+  utt.onend = onDone;
+  utt.onerror = onDone;
+  window.speechSynthesis.speak(utt);
 }
 
 // ── Ask hosts ─────────────────────────────────────────────────────────────

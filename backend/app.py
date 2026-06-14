@@ -68,7 +68,7 @@ STRUCTURE — don't announce it, just do it:
 - Include one moment where they both go quiet for a beat and just sit with how weird something is
 - End on what this actually changes — but make it feel real, not like a corporate slide
 
-Output ONLY valid JSON array, 20-26 turns:
+Output ONLY valid JSON array, 12-16 turns (keep it tight and punchy):
 [{"speaker": "Alex", "text": "..."}, {"speaker": "Maya", "text": "..."}, ...]
 No markdown. No preamble. Start with [ and end with ]"""
 
@@ -167,7 +167,7 @@ async def stream_script(paper_text: str):
     try:
         with client.messages.stream(
             model="claude-sonnet-4-6",
-            max_tokens=5000,
+            max_tokens=3500,
             system=SYSTEM_PROMPT,
             messages=[{
                 "role": "user",
