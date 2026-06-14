@@ -2,10 +2,8 @@ import os
 import re
 import json
 import base64
-import asyncio
-import io
 import anthropic
-import edge_tts
+from openai import OpenAI
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -29,20 +27,14 @@ app.add_middleware(
 )
 
 api_key = os.environ.get("ANTHROPIC_API_KEY", "")
+openai_key = os.environ.get("OPENAI_API_KEY", "")
 client = anthropic.Anthropic(api_key=api_key)
+openai_client = OpenAI(api_key=openai_key) if openai_key else None
 
-# Microsoft Edge Neural voices — free, genuinely human-sounding
+# OpenAI TTS-1-HD voices — same as the other project, genuinely human
 VOICES = {
-    "Alex": {
-        "voice": "en-US-GuyNeural",
-        "rate": "+5%",
-        "pitch": "-3Hz",
-    },
-    "Maya": {
-        "voice": "en-US-JennyNeural",
-        "rate": "-2%",
-        "pitch": "+2Hz",
-    }
+    "Alex": "onyx",   # Deep, warm male
+    "Maya": "nova",   # Clear, expressive female
 }
 
 # ── The conversation prompt ────────────────────────────────────────────────
@@ -120,37 +112,15 @@ SAMPLE_PAPERS = {
 }
 
 
-# ── Edge TTS ───────────────────────────────────────────────────────────────
+# ── OpenAI TTS ─────────────────────────────────────────────────────────────
 
 def preprocess_for_tts(text: str) -> str:
-    """Clean script text for natural TTS delivery."""
-    # Remove stage directions like (laughs)
-    cleaned = re.sub(r'\([^)]*\)', '', text)
-    # Remove CAPS formatting (TTS handles emphasis naturally)
-    cleaned = re.sub(r'\b([A-Z]{3,})\b', lambda m: m.group(1).capitalize(), cleaned)
-    # Clean up extra spaces
+    """Clean script markers so TTS sounds natural."""
+    cleaned = re.sub(r'\([^)]*\)', '', text)          # remove (laughs) etc
+    cleaned = re.sub(r'\b([A-Z]{3,})\b',              # CAPS → Title case
+        lambda m: m.group(1).capitalize(), cleaned)
     cleaned = re.sub(r'  +', ' ', cleaned).strip()
     return cleaned
-
-
-async def synthesize_edge(text: str, speaker: str) -> bytes:
-    """Generate audio using Microsoft Edge Neural TTS — completely free."""
-    cfg = VOICES.get(speaker, VOICES["Alex"])
-    cleaned = preprocess_for_tts(text)
-
-    communicate = edge_tts.Communicate(
-        text=cleaned,
-        voice=cfg["voice"],
-        rate=cfg["rate"],
-        pitch=cfg["pitch"],
-    )
-
-    audio_chunks = []
-    async for chunk in communicate.stream():
-        if chunk["type"] == "audio":
-            audio_chunks.append(chunk["data"])
-
-    return b"".join(audio_chunks)
 
 
 class TTSRequest(BaseModel):
@@ -162,8 +132,19 @@ class TTSRequest(BaseModel):
 async def tts_endpoint(req: TTSRequest):
     if req.speaker not in VOICES:
         raise HTTPException(status_code=400, detail="Speaker must be Alex or Maya.")
+    if not openai_client:
+        raise HTTPException(status_code=500, detail="OPENAI_API_KEY not set on server.")
     try:
-        audio_bytes = await synthesize_edge(req.text, req.speaker)
+        cleaned = preprocess_for_tts(req.text)
+        voice = VOICES[req.speaker]
+        response = openai_client.audio.speech.create(
+            model="tts-1-hd",
+            voice=voice,
+            input=cleaned,
+            speed=1.05,
+            response_format="mp3",
+        )
+        audio_bytes = response.content
         audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
         return {"audio": audio_b64}
     except Exception as e:

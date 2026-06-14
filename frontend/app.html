@@ -570,36 +570,46 @@ let currentPaper = '';
 let currentAudio = null;       // active HTMLAudioElement
 let audioCache = {};           // pre-fetched audio: idx → base64
 
-// ── Google Neural2 TTS ────────────────────────────────────────────────────
+// ── OpenAI TTS-1-HD ────────────────────────────────────────────────────────
+let fetchingTurn = -1; // track which turn is mid-fetch
+
 async function fetchAudio(turn, turnIdx) {
   if (audioCache[turnIdx]) return audioCache[turnIdx];
+  fetchingTurn = turnIdx;
   try {
     const res = await fetch(`${API}/api/tts`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({text: turn.text, speaker: turn.speaker}),
     });
-    if (!res.ok) throw new Error('TTS failed');
+    if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
-    audioCache[turnIdx] = data.audio; // base64 MP3
+    audioCache[turnIdx] = data.audio;
     return data.audio;
-  } catch {
+  } catch(e) {
+    console.warn('TTS fetch failed:', e.message);
     return null;
+  } finally {
+    fetchingTurn = -1;
   }
 }
 
 function playBase64Audio(b64, onEnd, onError) {
-  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  stopAudio();
   const audio = new Audio(`data:audio/mp3;base64,${b64}`);
-  audio.playbackRate = 1.0;
   currentAudio = audio;
-  audio.onended = onEnd;
-  audio.onerror = onError;
-  audio.play().catch(onError);
+  audio.onended = () => { currentAudio = null; onEnd(); };
+  audio.onerror = () => { currentAudio = null; onError(); };
+  audio.play().catch(() => { currentAudio = null; onError(); });
 }
 
 function stopAudio() {
-  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  if (currentAudio) {
+    currentAudio.onended = null;
+    currentAudio.onerror = null;
+    currentAudio.pause();
+    currentAudio = null;
+  }
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────
