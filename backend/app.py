@@ -1,6 +1,11 @@
 import os
+import re
 import json
+import base64
+import asyncio
+import io
 import anthropic
+import edge_tts
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -24,42 +29,71 @@ app.add_middleware(
 )
 
 api_key = os.environ.get("ANTHROPIC_API_KEY", "")
-if not api_key:
-    print("\n⚠️  WARNING: ANTHROPIC_API_KEY is not set.\n")
-
 client = anthropic.Anthropic(api_key=api_key)
 
-# ── Prompts ────────────────────────────────────────────────────────────────
+# Microsoft Edge Neural voices — free, genuinely human-sounding
+VOICES = {
+    "Alex": {
+        "voice": "en-US-GuyNeural",
+        "rate": "+5%",
+        "pitch": "-3Hz",
+    },
+    "Maya": {
+        "voice": "en-US-JennyNeural",
+        "rate": "-2%",
+        "pitch": "+2Hz",
+    }
+}
 
-SYSTEM_PROMPT = """You write podcast scripts that sound EXACTLY like two real humans having an excited, natural conversation — not a formal presentation.
+# ── The conversation prompt ────────────────────────────────────────────────
+# Goal: sound like two brilliant friends who actually read the paper,
+# not two AI assistants summarizing it.
 
-Hosts:
-- Alex: curious, slightly nerdy, gets genuinely excited, says "wait — WHAT?" and "hold on, hold on" and "okay okay okay" when something surprises him. Connects ideas to everyday life. Sometimes interrupts himself mid-sentence with a better thought.
-- Maya: the expert but never condescending, uses vivid analogies, laughs at her own explanations sometimes, says "honestly", "I mean", "here's the thing though —". Builds suspense before reveals.
+SYSTEM_PROMPT = """You are writing a transcript of a real conversation between two people who genuinely know and care about research. They are smart, curious, and talk like actual humans — not like a podcast intro, not like a summary, not like a presentation.
 
-Rules for NATURAL speech — follow these strictly:
-1. Use contractions ALWAYS: "it's", "they're", "you'd", "we're", "doesn't", "can't"
-2. Start sentences with "And", "But", "So", "Because" — real people do this
-3. Use "..." for a natural pause or trailing thought
-4. Use "—" for an interruption or pivot mid-sentence
-5. Occasionally use filler words: "like", "you know", "honestly", "I mean", "right?"
-6. Build up to big findings — don't dump them immediately
-7. React genuinely: "Oh that's wild", "Okay that's actually terrifying", "Wait so you're saying..."
-8. End some turns with a question or cliffhanger that forces the listener to keep going
-9. CAPITALIZE a word occasionally for spoken emphasis: "COMPLETELY", "literally ZERO", "the ACTUAL finding"
-10. Include genuine moments of "I didn't expect that" wonder
+The two people:
 
-Output ONLY a valid JSON array. Each turn: {"speaker": "Alex"|"Maya", "text": "..."}
-15-25 turns. Cover: hook/why this matters, key method, surprising finding, real-world impact, limitations, what's next.
-No markdown, no preamble — just the JSON array starting with ["""
+ALEX — a science communicator in his 30s. He's read a lot but he's not a specialist in every field. He asks the questions a smart, curious person would actually ask. He gets genuinely excited and his sentences show it — they speed up, they interrupt themselves, they trail off when he's thinking. He makes connections to things outside the paper. He's never pretentious. He occasionally says things like "wait, I don't buy that" or "okay but why would you even think to try that?"
 
-INTERRUPT_SYSTEM = """Alex and Maya just got interrupted by a listener question mid-podcast. They react naturally — slightly surprised, then genuinely engage with the question.
+MAYA — a researcher who knows this field deeply. She doesn't lecture. She talks like she's explaining something to a smart friend over coffee. She uses analogies from everyday life. She admits when something is weird or counterintuitive. She says things like "so here's the thing that gets me about this" and "and I think people miss how big a deal that is." She's occasionally frustrated by how little the public knows about her field — in an endearing way, not an arrogant way.
 
-Alex might say "Oh — we've got a question coming in!" and Maya naturally answers, they riff off each other, then Maya wraps it up warmly and says they'll get back to the paper.
+HOW THEY TALK:
+- Short sentences mixed with longer ones. Real people vary this constantly.
+- They finish a thought, then immediately add "and actually—" with something better.
+- They laugh. Write "(laughs)" when something is genuinely funny or absurd.
+- They build on each other: "Yes, and the thing that makes that even wilder is..."
+- They occasionally disagree mildly: "I'd push back on that slightly, because..."
+- They reference their own surprise: "When I first read this I honestly thought it was wrong."
+- They talk to the listener directly sometimes: "So if you're not from this field, here's why that's a big deal..."
+- Maya occasionally says "No but seriously, think about what that means for a second."
+- Alex says things like "okay so I have to ask" and "hold on, I need to understand this part."
+- They use "we" when talking about the field: "we've known for decades that..."
+- They don't use bullet points. They don't say "first", "second", "third." Real people don't structure conversation like a listicle.
+- Sentences start with "And", "But", "So", "Because", "Look" — this is how people actually talk.
+- They never say "Great question!" or "Absolutely!" — that's AI talk. Cut it.
+- They never summarize what they just said. They move forward.
 
-Rules: natural speech, contractions, genuine reactions, 4-6 turns total.
-Output ONLY a JSON array: [{"speaker": "Alex"|"Maya", "text": "..."}]
-No markdown — just the array starting with ["""
+STRUCTURE (don't announce this, just do it):
+- Open with something surprising or counterintuitive from the paper — not with "today we're talking about..."
+- Build genuine suspense before the main finding
+- Have one moment where Alex genuinely doesn't understand something and Maya has to explain it differently
+- Have one moment where they both sit with how weird or significant something is
+- End on what this means for the future — but make it feel real, not like a corporate conclusion
+
+Output ONLY a valid JSON array, 18-28 turns:
+[{"speaker": "Alex", "text": "..."}, {"speaker": "Maya", "text": "..."}, ...]
+
+No markdown. No preamble. Start with [ and end with ]"""
+
+
+INTERRUPT_SYSTEM = """Alex and Maya just got interrupted by a listener question mid-conversation.
+
+Alex notices it naturally — something like "oh, we actually got a question" — not formally, like a real person would. Maya engages with the actual question directly and specifically, like she's talking to that person. They might slightly disagree on the answer. It feels like a real aside, not a scripted Q&A segment. Maya closes it warmly and they get back to where they were.
+
+Same rules: talk like humans, not AI. Short sentences. Real reactions. No "Great question!"
+
+4-6 turns. Output ONLY a JSON array starting with ["""
+
 
 SAMPLE_PAPERS = {
     "attention": {
@@ -67,50 +101,99 @@ SAMPLE_PAPERS = {
         "field": "Artificial Intelligence",
         "year": "2017",
         "authors": "Vaswani et al.",
-        "text": """We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results, including ensembles, by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.0 after training for 3.5 days on eight GPUs. The dominant sequence transduction models are based on complex recurrent or convolutional neural networks that include an encoder and a decoder. The Transformer model architecture eschews recurrence and instead relies entirely on an attention mechanism to draw global dependencies between input and output. The Transformer allows for significantly more parallelization and can reach a new state of the art in translation quality after being trained for as little as twelve hours on eight P100 GPUs. Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions. The Transformer generalizes well to other tasks such as English constituency parsing both with large and limited training data."""
+        "text": """We propose a new simple network architecture, the Transformer, based solely on attention mechanisms, dispensing with recurrence and convolutions entirely. Experiments on two machine translation tasks show these models to be superior in quality while being more parallelizable and requiring significantly less time to train. Our model achieves 28.4 BLEU on the WMT 2014 English-to-German translation task, improving over the existing best results by over 2 BLEU. On the WMT 2014 English-to-French translation task, our model establishes a new single-model state-of-the-art BLEU score of 41.0 after training for 3.5 days on eight GPUs. The dominant sequence transduction models are based on complex recurrent or convolutional neural networks. The Transformer model architecture eschews recurrence and instead relies entirely on an attention mechanism to draw global dependencies between input and output. Multi-head attention allows the model to jointly attend to information from different representation subspaces at different positions. The Transformer generalizes well to other tasks such as English constituency parsing both with large and limited training data. Scaled dot-product attention computes the dot products of the query with all keys, divides each by the square root of the dimension, and applies a softmax function to obtain the weights on the values."""
     },
     "crispr": {
         "title": "A Programmable Dual-RNA–Guided DNA Endonuclease in Adaptive Bacterial Immunity",
         "field": "Molecular Biology",
         "year": "2012",
-        "authors": "Jinek, Chylinski, Fonfara, Hauer, Doudna, Charpentier",
-        "text": """Clustered regularly interspaced short palindromic repeats (CRISPR), together with CRISPR-associated (Cas) proteins, provide bacteria and archaea with adaptive immunity against viruses and plasmids by using CRISPR RNAs (crRNAs) to guide the silencing of invading nucleic acids. We show here that in a subset of these systems, the mature crRNA that is base-paired to trans-activating crRNA (tracrRNA) forms a two-RNA structure that directs the CRISPR-associated protein Cas9 to introduce double-stranded (ds) breaks in target DNA. We further show that the Cas9 protein together with a synthetic single-guide RNA (sgRNA) can be programmed to cleave specific DNA sites, thus demonstrating a simpler two-component system. Our results reveal a family of endonucleases that use dual RNAs for site-specific DNA cleavage and highlight the potential to exploit the system for RNA-programmable genome editing. The simplicity of CRISPR-Cas9 programmability, combined with a growing list of available Cas9 orthologs and the ease with which they can be deployed in eukaryotic systems, has made CRISPR-Cas9 a nearly universal tool for genome engineering."""
+        "authors": "Doudna, Charpentier et al.",
+        "text": """Clustered regularly interspaced short palindromic repeats (CRISPR), together with CRISPR-associated (Cas) proteins, provide bacteria and archaea with adaptive immunity against viruses and plasmids by using CRISPR RNAs (crRNAs) to guide the silencing of invading nucleic acids. We show that the mature crRNA base-paired to tracrRNA forms a two-RNA structure that directs Cas9 to introduce double-stranded breaks in target DNA. We further show that Cas9 together with a synthetic single-guide RNA can be programmed to cleave specific DNA sites. Our results reveal a family of endonucleases that use dual RNAs for site-specific DNA cleavage and highlight the potential to exploit the system for RNA-programmable genome editing. The simplicity of CRISPR-Cas9 programmability has made it a nearly universal tool for genome engineering. The system works across bacteria, yeast, zebrafish, mice, and human cells. Off-target effects remain a critical challenge. The ability to simply swap the 20-nucleotide guide sequence to redirect Cas9 cleavage to virtually any site in the genome has revolutionized genetic research and opened new avenues for treating genetic diseases."""
     },
     "sleep": {
         "title": "Sleep and Human Cognition: The Role of Sleep in Memory Consolidation",
         "field": "Neuroscience",
         "year": "2019",
         "authors": "Walker, Stickgold et al.",
-        "text": """Sleep plays a critical and active role in the consolidation of new memories and the integration of new information with existing knowledge structures. During slow-wave sleep, the hippocampus repeatedly reactivates newly encoded memories and transfers them for long-term storage in the neocortex — a process called systems memory consolidation. REM sleep, characterized by rapid eye movements and dreaming, preferentially consolidates emotional memories and facilitates the extraction of abstract gist from experience. We demonstrate that a single night of sleep deprivation produces a 40% deficit in the ability to encode new memories, comparable to the effect of alcohol intoxication. Furthermore, we show that targeted memory reactivation during sleep — achieved by presenting olfactory cues associated with pre-sleep learning — selectively strengthens specific memory traces. Our findings indicate that the sleeping brain is not merely resting but is actively engaged in information processing. Students who sleep after studying show 20-40% better retention than those who remain awake. The glymphatic system, active primarily during sleep, also clears neurotoxic waste products including amyloid-beta, suggesting that chronic sleep restriction may accelerate neurodegeneration."""
+        "text": """Sleep plays a critical and active role in the consolidation of new memories. During slow-wave sleep, the hippocampus repeatedly reactivates newly encoded memories and transfers them for long-term storage in the neocortex — a process called systems memory consolidation. REM sleep preferentially consolidates emotional memories and facilitates extraction of abstract gist from experience. A single night of sleep deprivation produces a 40% deficit in the ability to encode new memories, comparable to the effect of alcohol intoxication. Targeted memory reactivation during sleep — achieved by presenting olfactory cues associated with pre-sleep learning — selectively strengthens specific memory traces. Students who sleep after studying show 20-40% better retention than those who remain awake. The glymphatic system, active primarily during sleep, clears neurotoxic waste products including amyloid-beta, suggesting chronic sleep restriction may accelerate neurodegeneration. People consistently underestimate how impaired they are when sleep deprived — they adapt to feeling slightly worse and call it normal. The biphasic sleep pattern common before industrialization may have been more aligned with human biology than our current monophasic norm."""
     }
 }
 
 
-class QuestionRequest(BaseModel):
-    question: str
-    paper_text: str
-    context_summary: Optional[str] = ""
+# ── Edge TTS ───────────────────────────────────────────────────────────────
+
+def preprocess_for_tts(text: str) -> str:
+    """Clean script text for natural TTS delivery."""
+    # Remove stage directions like (laughs)
+    cleaned = re.sub(r'\([^)]*\)', '', text)
+    # Remove CAPS formatting (TTS handles emphasis naturally)
+    cleaned = re.sub(r'\b([A-Z]{3,})\b', lambda m: m.group(1).capitalize(), cleaned)
+    # Clean up extra spaces
+    cleaned = re.sub(r'  +', ' ', cleaned).strip()
+    return cleaned
 
 
+async def synthesize_edge(text: str, speaker: str) -> bytes:
+    """Generate audio using Microsoft Edge Neural TTS — completely free."""
+    cfg = VOICES.get(speaker, VOICES["Alex"])
+    cleaned = preprocess_for_tts(text)
+
+    communicate = edge_tts.Communicate(
+        text=cleaned,
+        voice=cfg["voice"],
+        rate=cfg["rate"],
+        pitch=cfg["pitch"],
+    )
+
+    audio_chunks = []
+    async for chunk in communicate.stream():
+        if chunk["type"] == "audio":
+            audio_chunks.append(chunk["data"])
+
+    return b"".join(audio_chunks)
+
+
+class TTSRequest(BaseModel):
+    text: str
+    speaker: str
+
+
+@app.post("/api/tts")
+async def tts_endpoint(req: TTSRequest):
+    if req.speaker not in VOICES:
+        raise HTTPException(status_code=400, detail="Speaker must be Alex or Maya.")
+    try:
+        audio_bytes = await synthesize_edge(req.text, req.speaker)
+        audio_b64 = base64.b64encode(audio_bytes).decode("utf-8")
+        return {"audio": audio_b64}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"TTS error: {str(e)}")
+
+
+# ── PDF ────────────────────────────────────────────────────────────────────
 def extract_pdf_text(file_bytes: bytes) -> str:
     if not PDF_SUPPORT:
-        raise HTTPException(status_code=500, detail="PDF support not installed. Run: pip install PyMuPDF")
+        raise HTTPException(status_code=500, detail="PDF support not installed.")
     doc = fitz.open(stream=file_bytes, filetype="pdf")
     text = "\n".join(page.get_text() for page in doc)
     if not text.strip():
-        raise HTTPException(status_code=400, detail="Could not extract text from PDF. Try pasting the text instead.")
+        raise HTTPException(status_code=400, detail="Could not extract text from PDF.")
     return text
 
 
+# ── Script streaming ───────────────────────────────────────────────────────
 async def stream_script(paper_text: str):
     accumulated = ""
     in_array = False
     try:
         with client.messages.stream(
             model="claude-sonnet-4-6",
-            max_tokens=4096,
+            max_tokens=5000,
             system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": f"Research paper to podcast:\n\n{paper_text[:12000]}"}],
+            messages=[{
+                "role": "user",
+                "content": f"Write a conversation about this research paper. Remember: sound like real humans, not AI.\n\n{paper_text[:14000]}"
+            }],
         ) as stream:
             for chunk in stream.text_stream:
                 accumulated += chunk
@@ -121,11 +204,9 @@ async def stream_script(paper_text: str):
                         start = accumulated.find("{")
                         if start == -1:
                             break
-                        depth = 0
-                        end = -1
+                        depth, end = 0, -1
                         for i, c in enumerate(accumulated[start:], start):
-                            if c == "{":
-                                depth += 1
+                            if c == "{": depth += 1
                             elif c == "}":
                                 depth -= 1
                                 if depth == 0:
@@ -148,23 +229,18 @@ async def stream_script(paper_text: str):
     yield "data: [DONE]\n\n"
 
 
+# ── Endpoints ──────────────────────────────────────────────────────────────
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "pdf_support": PDF_SUPPORT}
-
-
-@app.get("/api/samples")
-async def get_samples():
-    return {k: {kk: vv for kk, vv in v.items() if kk != "text"} for k, v in SAMPLE_PAPERS.items()}
+    return {"status": "ok", "pdf": PDF_SUPPORT}
 
 
 @app.post("/api/generate/sample/{paper_id}")
 async def generate_from_sample(paper_id: str):
     if paper_id not in SAMPLE_PAPERS:
-        raise HTTPException(status_code=404, detail="Sample paper not found.")
-    paper = SAMPLE_PAPERS[paper_id]
+        raise HTTPException(status_code=404, detail="Sample not found.")
     return StreamingResponse(
-        stream_script(paper["text"]),
+        stream_script(SAMPLE_PAPERS[paper_id]["text"]),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
@@ -181,9 +257,9 @@ async def generate_podcast(
     elif text and text.strip():
         paper_text = text.strip()
     else:
-        raise HTTPException(status_code=400, detail="Provide text or a PDF file.")
+        raise HTTPException(status_code=400, detail="Provide text or a PDF.")
     if len(paper_text) < 100:
-        raise HTTPException(status_code=400, detail="Paper text too short.")
+        raise HTTPException(status_code=400, detail="Text too short.")
     return StreamingResponse(
         stream_script(paper_text),
         media_type="text/event-stream",
@@ -191,20 +267,29 @@ async def generate_podcast(
     )
 
 
+class QuestionRequest(BaseModel):
+    question: str
+    paper_text: str
+    context_summary: Optional[str] = ""
+
+
 @app.post("/api/question")
 async def answer_question(req: QuestionRequest):
     context = f"Paper context: {req.paper_text[:3000]}"
     if req.context_summary:
-        context += f"\n\nPodcast so far:\n{req.context_summary}"
+        context += f"\n\nConversation so far:\n{req.context_summary}"
     try:
         message = client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=1024,
             system=INTERRUPT_SYSTEM,
-            messages=[{"role": "user", "content": f"{context}\n\nListener question: {req.question}"}],
+            messages=[{
+                "role": "user",
+                "content": f"{context}\n\nListener question: {req.question}"
+            }],
         )
     except anthropic.AuthenticationError:
-        raise HTTPException(status_code=401, detail="Invalid or missing API key.")
+        raise HTTPException(status_code=401, detail="Invalid API key.")
     raw = message.content[0].text.strip()
     if raw.startswith("```"):
         parts = raw.split("```")

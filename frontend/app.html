@@ -567,47 +567,39 @@ let playing = false;
 let interrupted = false;
 let paperText = '';
 let currentPaper = '';
-let synth = window.speechSynthesis;
-let voices = [];
+let currentAudio = null;       // active HTMLAudioElement
+let audioCache = {};           // pre-fetched audio: idx → base64
 
-// ── Voices ────────────────────────────────────────────────────────────────
-function loadVoices() { voices = synth.getVoices(); }
-loadVoices();
-if (speechSynthesis.onvoiceschanged !== undefined) {
-  speechSynthesis.onvoiceschanged = loadVoices;
-}
-
-function getVoice(speaker) {
-  const en = voices.filter(v => v.lang.startsWith('en'));
-  if (!en.length) return null;
-  if (speaker === 'Alex') {
-    return en.find(v => /\b(daniel|fred|alex|bruce|ralph|tom|james|oliver|liam|aaron|arthur)\b/i.test(v.name))
-      || (en.length > 1 ? en[1] : en[0]);
+// ── Google Neural2 TTS ────────────────────────────────────────────────────
+async function fetchAudio(turn, turnIdx) {
+  if (audioCache[turnIdx]) return audioCache[turnIdx];
+  try {
+    const res = await fetch(`${API}/api/tts`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({text: turn.text, speaker: turn.speaker}),
+    });
+    if (!res.ok) throw new Error('TTS failed');
+    const data = await res.json();
+    audioCache[turnIdx] = data.audio; // base64 MP3
+    return data.audio;
+  } catch {
+    return null;
   }
-  return en.find(v => /\b(samantha|karen|victoria|moira|fiona|tessa|zira|kate|susan|linda|sarah|emily|ava|nicky)\b/i.test(v.name))
-    || en[0];
 }
 
-// Natural speech: parse CAPS words and add slight rate/pitch variation
-function buildUtt(turn) {
-  let text = turn.text;
-  // Replace em-dash interruptions with a brief pause via comma
-  text = text.replace(/—/g, ', ');
-  // Expand "..." into natural pause (browser uses commas as micro-pauses)
-  text = text.replace(/\.\.\./g, ', ');
+function playBase64Audio(b64, onEnd, onError) {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
+  const audio = new Audio(`data:audio/mp3;base64,${b64}`);
+  audio.playbackRate = 1.0;
+  currentAudio = audio;
+  audio.onended = onEnd;
+  audio.onerror = onError;
+  audio.play().catch(onError);
+}
 
-  const utt = new SpeechSynthesisUtterance(text);
-  utt.lang = 'en-US';
-  utt.rate = turn.speaker === 'Alex' ? 1.08 : 1.0;
-  utt.pitch = turn.speaker === 'Maya' ? 1.18 : 0.88;
-
-  // Vary rate slightly based on content mood
-  if (/!/.test(turn.text)) { utt.rate += 0.05; utt.pitch += 0.05; }
-  if (/\?$/.test(turn.text.trim())) { utt.pitch += 0.08; }
-
-  const v = getVoice(turn.speaker);
-  if (v) utt.voice = v;
-  return utt;
+function stopAudio() {
+  if (currentAudio) { currentAudio.pause(); currentAudio = null; }
 }
 
 // ── UI helpers ────────────────────────────────────────────────────────────
@@ -680,6 +672,8 @@ async function streamGenerate(url, options = {}) {
   idx = 0;
   playing = false;
   interrupted = false;
+  audioCache = {};
+  stopAudio();
   document.getElementById('transcript').innerHTML = '';
   document.getElementById('progressFill').style.width = '0%';
   document.getElementById('progressCount').textContent = '0 / 0';
@@ -807,14 +801,14 @@ function startPlayback() {
 }
 
 function pausePlayback() {
-  synth.cancel();
+  stopAudio();
   playing = false;
   document.getElementById('playBtn').textContent = '▶';
   setHostSpeaking(null);
   setStatus(`Paused at turn ${idx + 1}`);
 }
 
-function playFrom(i) {
+async function playFrom(i) {
   if (!playing || i >= turns.length) {
     if (i >= turns.length) {
       playing = false;
@@ -833,22 +827,31 @@ function playFrom(i) {
   setStatus(`${turn.speaker} · ${i + 1} of ${turns.length}`);
   setHostSpeaking(turn.speaker);
 
-  const utt = buildUtt(turn);
+  // Pre-fetch next turn in background
+  if (i + 1 < turns.length) fetchAudio(turns[i + 1], i + 1);
 
-  utt.onend = () => {
-    document.getElementById(`t${i}`)?.classList.add('done');
-    if (playing) playFrom(i + 1);
-  };
-  utt.onerror = (e) => {
-    if (e.error !== 'interrupted' && playing) playFrom(i + 1);
-  };
+  const b64 = await fetchAudio(turn, i);
+  if (!playing) return; // paused while fetching
 
-  synth.speak(utt);
+  if (b64) {
+    playBase64Audio(b64,
+      () => { document.getElementById(`t${i}`)?.classList.add('done'); if (playing) playFrom(i + 1); },
+      () => { if (playing) playFrom(i + 1); }
+    );
+  } else {
+    // Fallback to Web Speech if TTS fails
+    const utt = new SpeechSynthesisUtterance(turn.text);
+    utt.rate = turn.speaker === 'Alex' ? 1.08 : 1.0;
+    utt.pitch = turn.speaker === 'Maya' ? 1.18 : 0.88;
+    utt.onend = () => { document.getElementById(`t${i}`)?.classList.add('done'); if (playing) playFrom(i + 1); };
+    window.speechSynthesis.speak(utt);
+  }
 }
 
 // ── Ask hosts ─────────────────────────────────────────────────────────────
 window.openAsk = () => {
-  synth.cancel();
+  stopAudio();
+  window.speechSynthesis?.cancel();
   playing = false;
   interrupted = true;
   document.getElementById('playBtn').textContent = '▶';
@@ -924,21 +927,33 @@ window.sendQuestion = async () => {
   }
 };
 
-function playAnswerSeq(start, count, onDone) {
-  let i = 0;
-  function next() {
-    if (!playing || i >= count) { onDone(); return; }
+async function playAnswerSeq(start, count, onDone) {
+  for (let i = 0; i < count; i++) {
+    if (!playing) return;
     const ti = start + i;
     const turn = turns[ti];
     setActive(ti);
     setHostSpeaking(turn.speaker);
     setStatus(`${turn.speaker} answering (${i + 1}/${count})`);
-    const utt = buildUtt(turn);
-    utt.onend = () => { document.getElementById(`t${ti}`)?.classList.add('done'); i++; next(); };
-    utt.onerror = (e) => { if (e.error !== 'interrupted') { i++; next(); } };
-    synth.speak(utt);
+
+    const b64 = await fetchAudio(turn, ti);
+    if (!playing) return;
+
+    await new Promise((resolve) => {
+      if (b64) {
+        playBase64Audio(b64,
+          () => { document.getElementById(`t${ti}`)?.classList.add('done'); resolve(); },
+          () => resolve()
+        );
+      } else {
+        const utt = new SpeechSynthesisUtterance(turn.text);
+        utt.onend = () => { document.getElementById(`t${ti}`)?.classList.add('done'); resolve(); };
+        utt.onerror = () => resolve();
+        window.speechSynthesis.speak(utt);
+      }
+    });
   }
-  next();
+  onDone();
 }
 
 // ── Sample from URL param ─────────────────────────────────────────────────
