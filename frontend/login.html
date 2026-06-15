@@ -5,177 +5,143 @@
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>Sign in — ScholarFM</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet"/>
 <style>
-:root{
-  --bg:#07070f;--surface:#0f0f1a;--surface2:#14141f;--border:#1c1c2e;
-  --purple:#7c6aff;--pink:#ff6a94;--text:#f0f0f8;--muted:#6b6b8a;--muted2:#3a3a55;
-  --error:#ff4d6d;
-}
+:root{--bg:#07070f;--s1:#0d0d1a;--s2:#121220;--border:#1e1e32;--border2:#2a2a42;--purple:#7c6aff;--purple2:#9d8fff;--pdim:#7c6aff18;--pink:#ff6a94;--text:#f0f0fc;--muted:#7070a0;--muted2:#3a3a5a;--red:#ef4444;}
 *{box-sizing:border-box;margin:0;padding:0;}
 body{font-family:'Inter',sans-serif;background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;}
+a{text-decoration:none;color:inherit;}
+button{font-family:'Inter',sans-serif;}
 
-/* Background blobs */
-.bg-blob{position:fixed;pointer-events:none;border-radius:50%;filter:blur(80px);opacity:.15;}
-.blob1{width:500px;height:500px;background:var(--purple);top:-100px;left:-100px;}
-.blob2{width:400px;height:400px;background:var(--pink);bottom:-100px;right:-100px;}
+nav{padding:0 5%;height:68px;display:flex;align-items:center;border-bottom:1px solid var(--border);}
+.logo{display:flex;align-items:center;gap:10px;cursor:pointer;}
+.logo-mark{width:32px;height:32px;background:var(--purple);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;font-weight:900;color:#fff;}
+.logo-text{font-size:18px;font-weight:800;letter-spacing:-0.5px;}
+.logo-text span{color:var(--purple2);}
 
-/* Nav */
-nav{
-  padding:0 32px;height:60px;display:flex;align-items:center;
-  border-bottom:1px solid var(--border);position:relative;z-index:10;
-}
-.nav-logo{font-size:18px;font-weight:800;}
-.nav-logo span{color:var(--purple);}
-.nav-back{margin-left:auto;font-size:13px;color:var(--muted);cursor:pointer;transition:color .15s;}
-.nav-back:hover{color:var(--text);}
+.page{flex:1;display:flex;align-items:center;justify-content:center;padding:40px 20px;position:relative;overflow:hidden;}
+.bg-orb{position:absolute;pointer-events:none;border-radius:50%;filter:blur(100px);}
+.o1{width:500px;height:500px;background:#7c6aff;opacity:.06;top:-100px;right:-100px;}
+.o2{width:400px;height:400px;background:#ff6a94;opacity:.04;bottom:-100px;left:-100px;}
 
-/* Main layout */
-main{
-  flex:1;display:flex;align-items:center;justify-content:center;
-  padding:40px 24px;position:relative;z-index:10;
-}
-.auth-container{width:100%;max-width:420px;}
-
-/* Card */
 .auth-card{
-  background:var(--surface);border:1px solid var(--border);border-radius:20px;
-  padding:36px;
+  width:100%;max-width:400px;
+  background:var(--s1);border:1px solid var(--border);border-radius:20px;
+  padding:36px;position:relative;z-index:1;
+  box-shadow:0 40px 80px rgba(0,0,0,.5);
 }
-.auth-heading{font-size:24px;font-weight:800;letter-spacing:-.5px;margin-bottom:6px;}
-.auth-sub{font-size:14px;color:var(--muted);margin-bottom:28px;}
+.card-header{text-align:center;margin-bottom:28px;}
+.card-header h1{font-size:22px;font-weight:800;letter-spacing:-0.5px;margin-bottom:8px;}
+.card-header p{font-size:14px;color:var(--muted);}
 
-/* Google button */
 .btn-google{
-  width:100%;display:flex;align-items:center;justify-content:center;gap:12px;
-  padding:13px;border-radius:10px;border:1px solid var(--border);
-  background:var(--surface2);color:var(--text);font-size:15px;font-weight:600;
-  cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif;margin-bottom:20px;
+  width:100%;padding:13px;border-radius:10px;
+  background:var(--s2);border:1px solid var(--border2);
+  color:var(--text);font-size:14px;font-weight:600;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  transition:all .2s;margin-bottom:20px;
 }
-.btn-google:hover{border-color:var(--muted2);background:#1a1a2a;}
-.btn-google svg{width:18px;height:18px;flex-shrink:0;}
+.btn-google:hover{border-color:var(--muted2);background:rgba(255,255,255,.04);}
+.google-icon{width:18px;height:18px;}
 
-/* Divider */
 .divider{display:flex;align-items:center;gap:12px;margin-bottom:20px;}
 .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border);}
-.divider span{font-size:12px;color:var(--muted);}
+.divider span{font-size:12px;color:var(--muted2);font-weight:500;}
 
-/* Form */
-.field{margin-bottom:14px;}
-.field label{display:block;font-size:13px;font-weight:600;color:var(--muted);margin-bottom:7px;}
+.field{margin-bottom:16px;}
+.field label{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:6px;letter-spacing:.3px;text-transform:uppercase;}
 .field input{
   width:100%;padding:12px 14px;border-radius:10px;
-  border:1px solid var(--border);background:var(--surface2);
-  color:var(--text);font-size:14px;outline:none;font-family:'Inter',sans-serif;
-  transition:border-color .15s;
+  background:var(--s2);border:1px solid var(--border2);
+  color:var(--text);font-size:14px;font-family:'Inter',sans-serif;
+  outline:none;transition:border-color .15s;
 }
-.field input:focus{border-color:var(--purple);}
+.field input:focus{border-color:rgba(124,106,255,.5);}
 .field input::placeholder{color:var(--muted2);}
 
-.btn-submit{
+.btn-auth{
   width:100%;padding:13px;border-radius:10px;border:none;
   background:var(--purple);color:#fff;font-size:15px;font-weight:700;
-  cursor:pointer;transition:all .15s;font-family:'Inter',sans-serif;margin-top:4px;
-  box-shadow:0 0 20px #7c6aff33;
+  cursor:pointer;transition:all .2s;margin-top:4px;
+  box-shadow:0 0 20px rgba(124,106,255,.3);
 }
-.btn-submit:hover{background:#6a58e8;}
-.btn-submit:disabled{opacity:.5;cursor:not-allowed;}
+.btn-auth:hover{background:#6a58e8;transform:translateY(-1px);}
+.btn-auth:disabled{opacity:.5;cursor:not-allowed;transform:none;}
 
-/* Toggle */
-.auth-toggle{text-align:center;margin-top:20px;font-size:14px;color:var(--muted);}
-.auth-toggle button{
-  background:none;border:none;color:var(--purple);font-weight:600;
-  cursor:pointer;font-size:14px;font-family:'Inter',sans-serif;
-}
-.auth-toggle button:hover{text-decoration:underline;}
+.switch-mode{text-align:center;margin-top:20px;font-size:13px;color:var(--muted);}
+.switch-mode a{color:var(--purple2);font-weight:600;cursor:pointer;}
+.switch-mode a:hover{text-decoration:underline;}
 
-/* Error */
-.err-msg{
-  background:#ff4d6d18;border:1px solid #ff4d6d44;border-radius:8px;
-  padding:10px 14px;font-size:13px;color:#ff7a94;margin-bottom:14px;
-  display:none;
+.error-box{
+  background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.3);
+  border-radius:8px;padding:10px 14px;font-size:13px;color:#fca5a5;
+  margin-bottom:16px;display:none;
 }
-.err-msg.visible{display:block;}
+.error-box.show{display:block;}
 
-/* Success */
-.success-msg{
-  background:#22c55e18;border:1px solid #22c55e44;border-radius:8px;
-  padding:10px 14px;font-size:13px;color:#4ade80;margin-bottom:14px;
-  display:none;
-}
-.success-msg.visible{display:block;}
-
-/* Loading spinner */
-.spinner{
-  display:inline-block;width:16px;height:16px;border:2px solid #fff4;
-  border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;
-  vertical-align:middle;margin-right:8px;
-}
-@keyframes spin{to{transform:rotate(360deg);}}
+.name-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 </style>
 </head>
 <body>
-
-<div class="bg-blob blob1"></div>
-<div class="bg-blob blob2"></div>
-
 <nav>
-  <div class="nav-logo">Scholar<span>FM</span></div>
-  <div class="nav-back" onclick="location.href='index.html'">← Back to home</div>
+  <div class="logo" onclick="location.href='index.html'">
+    <div class="logo-mark">S</div>
+    <div class="logo-text">Scholar<span>FM</span></div>
+  </div>
 </nav>
 
-<main>
-  <div class="auth-container">
-    <div class="auth-card">
+<div class="page">
+  <div class="bg-orb o1"></div>
+  <div class="bg-orb o2"></div>
+  <div class="auth-card">
+    <div class="card-header">
+      <h1 id="card-title">Welcome back</h1>
+      <p id="card-sub">Sign in to your ScholarFM account</p>
+    </div>
 
-      <h1 class="auth-heading" id="heading">Welcome back</h1>
-      <p class="auth-sub" id="subheading">Sign in to your ScholarFM account</p>
+    <div id="error-box" class="error-box"></div>
 
-      <div class="err-msg" id="errMsg"></div>
-      <div class="success-msg" id="successMsg"></div>
+    <button class="btn-google" id="btn-google">
+      <svg class="google-icon" viewBox="0 0 24 24"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
+      Continue with Google
+    </button>
 
-      <!-- Google -->
-      <button class="btn-google" onclick="signInGoogle()">
-        <svg viewBox="0 0 48 48"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.2l6.7-6.7C35.8 2.5 30.3 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6C12.4 13 17.8 9.5 24 9.5z"/><path fill="#4285F4" d="M46.1 24.5c0-1.6-.1-3.1-.4-4.5H24v8.5h12.4c-.5 2.8-2.1 5.1-4.4 6.7l7 5.4C43.1 37 46.1 31.2 46.1 24.5z"/><path fill="#FBBC05" d="M10.5 28.6A14.5 14.5 0 019.5 24c0-1.6.3-3.2.9-4.6l-7.8-6A23.9 23.9 0 000 24c0 3.8.9 7.4 2.7 10.5l7.8-5.9z"/><path fill="#34A853" d="M24 48c6.3 0 11.6-2.1 15.5-5.7l-7-5.4c-2.1 1.4-4.8 2.2-8.5 2.2-6.2 0-11.5-4.2-13.4-9.8l-7.8 5.9C6.6 42.6 14.6 48 24 48z"/></svg>
-        Continue with Google
-      </button>
+    <div class="divider"><span>or</span></div>
 
-      <div class="divider"><span>or continue with email</span></div>
-
-      <!-- Name field (signup only) -->
-      <div class="field" id="nameField" style="display:none">
-        <label>Full name</label>
-        <input type="text" id="nameInput" placeholder="Your name"/>
-      </div>
-
+    <div id="signup-name-fields" class="name-fields" style="display:none;">
       <div class="field">
-        <label>Email address</label>
-        <input type="email" id="emailInput" placeholder="you@example.com"/>
+        <label>First name</label>
+        <input type="text" id="fname" placeholder="Alex"/>
       </div>
-
       <div class="field">
-        <label>Password</label>
-        <input type="password" id="passwordInput" placeholder="••••••••" onkeydown="if(event.key==='Enter')submitAuth()"/>
+        <label>Last name</label>
+        <input type="text" id="lname" placeholder="Smith"/>
       </div>
+    </div>
 
-      <button class="btn-submit" id="submitBtn" onclick="submitAuth()">
-        Sign in
-      </button>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="email" placeholder="you@university.edu"/>
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="password" placeholder="••••••••"/>
+    </div>
 
-      <div class="auth-toggle" id="toggle">
-        Don't have an account? <button onclick="switchMode()">Create one free</button>
-      </div>
+    <button class="btn-auth" id="btn-auth">Sign in</button>
 
+    <div class="switch-mode">
+      <span id="switch-text">Don't have an account?</span>
+      <a id="switch-link" onclick="toggleMode()"> Sign up free</a>
     </div>
   </div>
-</main>
+</div>
 
-<!-- Firebase SDK -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signInWithPopup, GoogleAuthProvider, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, GoogleAuthProvider, signInWithPopup, updateProfile } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js";
 
-// ── PASTE YOUR FIREBASE CONFIG HERE ───────────────────────────────────────
 const firebaseConfig = {
   apiKey: "AIzaSyBMj1pVHHDVNJPRYN-QlrLQ51GQEs8WQV0",
   authDomain: "scholarfm-c5a6d.firebaseapp.com",
@@ -184,104 +150,105 @@ const firebaseConfig = {
   messagingSenderId: "609436158841",
   appId: "1:609436158841:web:da83287d15509735f3bda8"
 };
-// ──────────────────────────────────────────────────────────────────────────
 
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const provider = new GoogleAuthProvider();
 
-let isSignup = new URLSearchParams(location.search).get('mode') === 'signup';
-const plan = new URLSearchParams(location.search).get('plan') || 'free';
+let isSignup = new URLSearchParams(window.location.search).get('mode') === 'signup';
+if (isSignup) applySignupMode();
 
-function applyMode() {
-  document.getElementById('heading').textContent = isSignup ? 'Create your account' : 'Welcome back';
-  document.getElementById('subheading').textContent = isSignup
-    ? 'Start listening to research for free'
-    : 'Sign in to your ScholarFM account';
-  document.getElementById('submitBtn').textContent = isSignup ? 'Create account' : 'Sign in';
-  document.getElementById('nameField').style.display = isSignup ? '' : 'none';
-  document.getElementById('toggle').innerHTML = isSignup
-    ? 'Already have an account? <button onclick="window.switchMode()">Sign in</button>'
-    : "Don't have an account? <button onclick=\"window.switchMode()\">Create one free</button>";
-}
-applyMode();
-
-window.switchMode = () => { isSignup = !isSignup; applyMode(); clearMessages(); };
-
-function showErr(msg) {
-  const el = document.getElementById('errMsg');
-  el.textContent = msg;
-  el.classList.add('visible');
-  document.getElementById('successMsg').classList.remove('visible');
-}
-function showSuccess(msg) {
-  const el = document.getElementById('successMsg');
-  el.textContent = msg;
-  el.classList.add('visible');
-  document.getElementById('errMsg').classList.remove('visible');
-}
-function clearMessages() {
-  document.getElementById('errMsg').classList.remove('visible');
-  document.getElementById('successMsg').classList.remove('visible');
+function applySignupMode() {
+  isSignup = true;
+  document.getElementById('card-title').textContent = 'Create your account';
+  document.getElementById('card-sub').textContent = 'Start listening to research papers today';
+  document.getElementById('btn-auth').textContent = 'Create account';
+  document.getElementById('switch-text').textContent = 'Already have an account?';
+  document.getElementById('switch-link').textContent = ' Sign in';
+  document.getElementById('signup-name-fields').style.display = 'grid';
 }
 
-function setLoading(on) {
-  const btn = document.getElementById('submitBtn');
-  btn.disabled = on;
-  btn.innerHTML = on ? '<span class="spinner"></span> Please wait…' : (isSignup ? 'Create account' : 'Sign in');
-}
-
-function afterAuth() {
-  showSuccess('✓ Logged in! Redirecting…');
-  setTimeout(() => { location.href = 'app.html'; }, 800);
-}
-
-window.signInGoogle = async () => {
-  clearMessages();
-  try {
-    await signInWithPopup(auth, provider);
-    afterAuth();
-  } catch (e) {
-    showErr(friendlyError(e.code));
+window.toggleMode = function() {
+  isSignup = !isSignup;
+  clearError();
+  if (isSignup) {
+    document.getElementById('card-title').textContent = 'Create your account';
+    document.getElementById('card-sub').textContent = 'Start listening to research papers today';
+    document.getElementById('btn-auth').textContent = 'Create account';
+    document.getElementById('switch-text').textContent = 'Already have an account?';
+    document.getElementById('switch-link').textContent = ' Sign in';
+    document.getElementById('signup-name-fields').style.display = 'grid';
+  } else {
+    document.getElementById('card-title').textContent = 'Welcome back';
+    document.getElementById('card-sub').textContent = 'Sign in to your ScholarFM account';
+    document.getElementById('btn-auth').textContent = 'Sign in';
+    document.getElementById('switch-text').textContent = "Don't have an account?";
+    document.getElementById('switch-link').textContent = ' Sign up free';
+    document.getElementById('signup-name-fields').style.display = 'none';
   }
 };
 
-window.submitAuth = async () => {
-  clearMessages();
-  const email = document.getElementById('emailInput').value.trim();
-  const password = document.getElementById('passwordInput').value;
-  if (!email || !password) { showErr('Please fill in all fields.'); return; }
-  if (password.length < 6) { showErr('Password must be at least 6 characters.'); return; }
-  setLoading(true);
-  try {
-    if (isSignup) {
-      await createUserWithEmailAndPassword(auth, email, password);
-    } else {
-      await signInWithEmailAndPassword(auth, email, password);
-    }
-    afterAuth();
-  } catch (e) {
-    setLoading(false);
-    showErr(friendlyError(e.code));
-  }
-};
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg;
+  el.classList.add('show');
+}
+function clearError() {
+  document.getElementById('error-box').classList.remove('show');
+}
 
 function friendlyError(code) {
   const map = {
-    'auth/user-not-found': 'No account with that email. Did you mean to sign up?',
-    'auth/wrong-password': 'Incorrect password. Try again.',
-    'auth/email-already-in-use': 'That email is already registered. Sign in instead.',
+    'auth/user-not-found': 'No account found with that email.',
+    'auth/wrong-password': 'Incorrect password.',
+    'auth/email-already-in-use': 'An account with this email already exists.',
+    'auth/weak-password': 'Password must be at least 6 characters.',
     'auth/invalid-email': 'Please enter a valid email address.',
-    'auth/too-many-requests': 'Too many attempts. Please wait a moment.',
     'auth/popup-closed-by-user': 'Google sign-in was cancelled.',
-    'auth/network-request-failed': 'Network error. Check your connection.',
+    'auth/invalid-credential': 'Incorrect email or password.',
   };
   return map[code] || 'Something went wrong. Please try again.';
 }
 
-// If already logged in, go to app
-onAuthStateChanged(auth, (user) => {
-  if (user) location.href = 'app.html';
+document.getElementById('btn-google').addEventListener('click', async () => {
+  clearError();
+  try {
+    await signInWithPopup(auth, provider);
+    location.href = 'app.html';
+  } catch(e) {
+    showError(friendlyError(e.code));
+  }
+});
+
+document.getElementById('btn-auth').addEventListener('click', async () => {
+  clearError();
+  const email = document.getElementById('email').value.trim();
+  const password = document.getElementById('password').value;
+  if (!email || !password) { showError('Please fill in all fields.'); return; }
+  const btn = document.getElementById('btn-auth');
+  btn.disabled = true;
+  btn.textContent = isSignup ? 'Creating account…' : 'Signing in…';
+  try {
+    if (isSignup) {
+      const fname = document.getElementById('fname').value.trim();
+      const lname = document.getElementById('lname').value.trim();
+      const cred = await createUserWithEmailAndPassword(auth, email, password);
+      if (fname || lname) await updateProfile(cred.user, { displayName: `${fname} ${lname}`.trim() });
+    } else {
+      await signInWithEmailAndPassword(auth, email, password);
+    }
+    location.href = 'app.html';
+  } catch(e) {
+    showError(friendlyError(e.code));
+    btn.disabled = false;
+    btn.textContent = isSignup ? 'Create account' : 'Sign in';
+  }
+});
+
+['email','password'].forEach(id => {
+  document.getElementById(id).addEventListener('keydown', e => {
+    if(e.key==='Enter') document.getElementById('btn-auth').click();
+  });
 });
 </script>
 </body>
